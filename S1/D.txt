@@ -1,0 +1,13 @@
+Q1(d)
+
+1. Quicksort complexity
+
+Best case: Theta(n log n)
+Each partition splits the array into two nearly equal parts.
+T(n) = 2T(n/2) + Theta(n)
+There are Theta(log n) levels, with Theta(n) work per level.
+
+Worst case: Theta(n^2)
+Each pivot is the smallest or largest element, giving subarrays of sizes 0 and n - 1.
+T(n) = T(n - 1) + Theta(n)
+The total work is proportional to n + (n - 1) + ... + 1 = Theta(n^2).

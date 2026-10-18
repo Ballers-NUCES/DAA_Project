@@ -1,0 +1,70 @@
+Q1(e)
+
+1. Divide-and-conquer algorithm and efficiency
+
+For an array A of n real numbers, n >= 2, the closest pair minimizes the absolute difference between two distinct elements. Split the unsorted array by index into two nearly equal parts. Each recursive call returns a sorted list, its best pair, and the distance of that pair. Merge the two sorted lists and scan all adjacent pairs to find the best pair for the combined list.
+
+Arrays use zero-based indexing. A pair contains values from two distinct array positions, so equal values may form a valid pair.
+
+FUNCTION ClosestPair(A):
+    (S, bestPair, bestDistance) = Solve(A, 0, LENGTH(A) - 1)
+    RETURN bestPair
+
+FUNCTION Solve(A, low, high):
+    IF low == high:
+        RETURN ([A[low]], NONE, infinity)
+
+    mid = FLOOR((low + high) / 2)
+    (L, leftPair, leftDistance) = Solve(A, low, mid)
+    (R, rightPair, rightDistance) = Solve(A, mid + 1, high)
+
+    IF leftDistance <= rightDistance:
+        bestPair = leftPair
+        bestDistance = leftDistance
+    ELSE:
+        bestPair = rightPair
+        bestDistance = rightDistance
+
+    S = Merge(L, R)
+    FOR i = 0 TO LENGTH(S) - 2:
+        distance = S[i + 1] - S[i]
+        IF distance < bestDistance:
+            bestPair = (S[i], S[i + 1])
+            bestDistance = distance
+
+    RETURN (S, bestPair, bestDistance)
+
+FUNCTION Merge(L, R):
+    S = EMPTY LIST
+    i = 0
+    j = 0
+
+    WHILE i < LENGTH(L) AND j < LENGTH(R):
+        IF L[i] <= R[j]:
+            APPEND L[i] TO S
+            i = i + 1
+        ELSE:
+            APPEND R[j] TO S
+            j = j + 1
+
+    WHILE i < LENGTH(L):
+        APPEND L[i] TO S
+        i = i + 1
+
+    WHILE j < LENGTH(R):
+        APPEND R[j] TO S
+        j = j + 1
+
+    RETURN S
+
+Correctness: In sorted order, the difference between any nonadjacent pair is a sum of nonnegative adjacent differences. Thus, some adjacent pair has minimum distance. Each merge produces a sorted list, and scanning all its adjacent pairs finds a closest pair, including pairs whose elements came from different halves. Duplicate values become adjacent and give distance 0. A singleton has no pair, so its distance is infinity; for n >= 2, the outer call returns an actual pair. Ties may be resolved by returning any closest pair.
+
+Merging and scanning a subproblem of size n take Theta(n) time. Therefore,
+
+T(n) = T(floor(n / 2)) + T(ceil(n / 2)) + Theta(n), with T(1) = Theta(1).
+
+This gives Theta(n log n) time. Auxiliary space is O(n), including the sorted lists and the O(log n) recursion stack, when temporary lists are released after their recursive call returns and its result has been used.
+
+2. Is this a good approach?
+
+Yes. It is efficient and improves on checking all pairs, which takes Theta(n^2) time. However, a simpler approach is to sort the array once using a Theta(n log n) sorting algorithm and then scan adjacent pairs once in Theta(n) time. This has the same Theta(n log n) total time with less algorithmic complexity. If the array is already sorted, just the adjacent scan is needed, taking Theta(n) time and O(1) auxiliary space.

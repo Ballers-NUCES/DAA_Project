@@ -1,0 +1,53 @@
+Q1(b)
+
+1. Divide and conquer algorithm
+
+To calculate a^n for a positive integer n, calculate a^floor(n/2)
+once and square it. If n is odd, multiply the result by a once more.
+The base case is a^1 = a.
+
+Pseudocode:
+
+FUNCTION Power(a, n):
+    IF n == 1:
+        RETURN a
+    half = Power(a, FLOOR(n / 2))
+    result = half * half
+    IF n MOD 2 == 1:
+        result = result * a
+    RETURN result
+
+2. Multiplication recurrence and solution
+
+Let M(n) be the number of multiplications used by Power(a, n).
+
+M(1) = 0
+M(n) = M(floor(n/2)) + 1, if n > 1 is even
+M(n) = M(floor(n/2)) + 2, if n > 1 is odd
+
+For n = 2^k, every step before the base case is even:
+M(2^k) = M(2^(k-1)) + 1 = ... = M(1) + k = k.
+Thus M(n) = log2(n) for powers of two.
+
+For general n, repeatedly taking floor(n/2) removes the last binary
+digit until only the leading 1 remains. There are floor(log2(n))
+such steps, each requiring one squaring. Each removed 1 bit means
+an odd step and requires one extra multiplication by a.
+
+popcount(n) means the number of 1 bits in the binary form of n.
+The leading 1 is the base case, so there are popcount(n) - 1 extra
+multiplications. Therefore,
+
+M(n) = floor(log2(n)) + popcount(n) - 1.
+
+Since 1 <= popcount(n) <= floor(log2(n)) + 1,
+floor(log2(n)) <= M(n) <= 2 floor(log2(n)).
+Hence the running time is Theta(log n), counting each multiplication
+as constant time.
+
+3. Comparison with brute force
+
+Brute force starts with a and multiplies by a another n - 1 times.
+It uses n - 1 multiplications and takes Theta(n) time.
+Divide and conquer uses Theta(log n) multiplications and time,
+so it is more efficient for large n.

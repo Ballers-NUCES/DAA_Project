@@ -1,0 +1,68 @@
+Q1(c)
+
+1. Counting inversions using merge sort
+
+An inversion is a pair of indices i < j such that A[i] > A[j].
+Arrays use zero-based indexing.
+
+FUNCTION CountInversions(A):
+    n = LENGTH(A)
+    B = NEW ARRAY OF SIZE n
+    RETURN SortAndCount(A, B, 0, n - 1)
+
+FUNCTION SortAndCount(A, B, low, high):
+    IF low >= high:
+        RETURN 0
+
+    mid = FLOOR((low + high) / 2)
+    leftCount = SortAndCount(A, B, low, mid)
+    rightCount = SortAndCount(A, B, mid + 1, high)
+    crossCount = MergeAndCount(A, B, low, mid, high)
+    RETURN leftCount + rightCount + crossCount
+
+FUNCTION MergeAndCount(A, B, low, mid, high):
+    i = low
+    j = mid + 1
+    k = low
+    count = 0
+
+    WHILE i <= mid AND j <= high:
+        IF A[i] <= A[j]:
+            B[k] = A[i]
+            i = i + 1
+        ELSE:
+            B[k] = A[j]
+            count = count + (mid - i + 1)
+            j = j + 1
+        k = k + 1
+
+    WHILE i <= mid:
+        B[k] = A[i]
+        i = i + 1
+        k = k + 1
+
+    WHILE j <= high:
+        B[k] = A[j]
+        j = j + 1
+        k = k + 1
+
+    FOR k = low TO high:
+        A[k] = B[k]
+    RETURN count
+
+Why it works:
+Empty and singleton ranges have no inversions. Each recursive call sorts
+its range and counts inversions within it. During merging, if the right
+item is smaller than the left item, it is smaller than all mid - i + 1
+unmerged left items, so these are exactly its remaining cross inversions.
+Otherwise, taking the left item creates no cross inversion; taking it first
+on equality ensures equal keys are not counted. Every inversion lies in
+the left half, the right half, or across the halves. Adding these three
+counts therefore counts every inversion exactly once.
+
+Runtime and space:
+Merging and copying back take Theta(n) time for a range of size n.
+T(n) = T(floor(n / 2)) + T(ceil(n / 2)) + Theta(n) for n >= 2,
+with T(0) = T(1) = Theta(1). Thus T(n) = Theta(n log n).
+The shared auxiliary array uses O(n) space, and the recursion stack uses
+O(log n) space, giving O(n) total extra space.

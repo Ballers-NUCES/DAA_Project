@@ -1,0 +1,68 @@
+Q1(a)
+
+1. Divide and conquer pseudocode
+
+Assume A is a nonempty array with indices 0 to n - 1.
+MinMax returns (minimum, maximum).
+
+FUNCTION MinMax(A, low, high):
+    size = high - low + 1
+    IF size == 1:
+        RETURN (A[low], A[low])
+    IF size == 2:
+        IF A[low] < A[high]:
+            RETURN (A[low], A[high])
+        ELSE:
+            RETURN (A[high], A[low])
+
+    mid = FLOOR((low + high) / 2)
+    (leftMin, leftMax) = MinMax(A, low, mid)
+    (rightMin, rightMax) = MinMax(A, mid + 1, high)
+
+    IF leftMin < rightMin:
+        minimum = leftMin
+    ELSE:
+        minimum = rightMin
+    IF leftMax > rightMax:
+        maximum = leftMax
+    ELSE:
+        maximum = rightMax
+    RETURN (minimum, maximum)
+
+FUNCTION FindMinMax(A, n):
+    RETURN MinMax(A, 0, n - 1)
+
+Each half returns its minimum and maximum. Comparing the two minima
+and the two maxima gives the minimum and maximum of the whole array.
+
+2. Recurrence and solution
+
+Let C(n) count comparisons between array values, excluding index and
+size checks. For n = 2^k:
+
+C(1) = 0
+C(2) = 1
+C(n) = 2C(n/2) + 2, for n >= 4
+
+After j expansions:
+C(n) = 2^j C(n/2^j) + 2(2^j - 1)
+
+For n >= 2, set j = k - 1, so n/2^j = 2:
+C(n) = (n/2)C(2) + 2(n/2 - 1)
+     = n/2 + n - 2
+     = 3n/2 - 2
+
+The running-time recurrence is T(n) = 2T(n/2) + Theta(1),
+with constant-time base cases. Hence T(n) = Theta(n).
+
+3. Comparison with brute force
+
+Brute force uses two independent scans: one to find the minimum and
+one to find the maximum. Each scan starts with the first element and
+makes n - 1 comparisons, giving 2n - 2 comparisons in total.
+
+For powers of two n >= 2, divide and conquer saves
+(2n - 2) - (3n/2 - 2) = n/2 comparisons, approximately 25% for large n.
+For n = 1, both methods make zero value comparisons.
+Both methods take Theta(n) time. Divide and conquer uses Theta(log n)
+recursion stack space, while the two iterative scans use Theta(1) space.
