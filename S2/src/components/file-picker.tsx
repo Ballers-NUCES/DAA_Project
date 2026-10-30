@@ -81,7 +81,7 @@ export function FilePicker({ id, file, disabled, onFileChange }: FilePickerProps
       <FieldDescription id={descriptionId} className="text-xs">
         {file
           ? `${formatFileSize(file.size)} · Ready to run`
-          : "Choose cp01–cp10 or im01–im10. Files are assumed valid."}
+          : "Choose cp01-cp10 or im01-im10. Files are assumed valid."}
       </FieldDescription>
     </Field>
   )
