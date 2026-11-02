@@ -36,64 +36,80 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ---------------------------------------------------------------------------
+   Theme: "Merlot"
+   Dark mode is a deep, dark wine (plum-leaning, not red, not black) with
+   cards stepping up in lightness. Light mode is a rosé cream with a deep
+   wine primary. Text is a soft rosé-white in dark and a wine-ink in light,
+   so there is no grey anywhere.
+
+   Dark hue 4 = plum-wine surfaces, hue 8 = rosé highlights, hue 27 = errors
+   (warmer and brighter than the wine so errors never blend in).
+   Contrast: body text 14:1+, muted text 5:1+ in both modes.
+--------------------------------------------------------------------------- */
+
 :root {
-  --background: oklch(0.968 0.009 350);
-  --foreground: oklch(0.25 0.015 350);
-  --card: oklch(0.991 0.004 350);
-  --card-foreground: oklch(0.25 0.015 350);
-  --popover: oklch(0.991 0.004 350);
-  --popover-foreground: oklch(0.25 0.015 350);
-  --primary: oklch(0.5 0.11 350);
-  --primary-foreground: oklch(0.985 0.004 350);
-  --secondary: oklch(0.925 0.014 350);
-  --secondary-foreground: oklch(0.35 0.035 350);
-  --muted: oklch(0.935 0.01 350);
-  --muted-foreground: oklch(0.48 0.018 350);
-  --accent: oklch(0.915 0.032 350);
-  --accent-foreground: oklch(0.39 0.075 350);
-  --destructive: oklch(0.53 0.19 25);
-  --success: oklch(0.48 0.11 155);
-  --border: oklch(0.865 0.015 350);
-  --input: oklch(0.79 0.018 350);
-  --ring: oklch(0.58 0.09 350);
+  --background: oklch(0.965 0.014 15); /* #fdf0f0  rosé cream page */
+  --foreground: oklch(0.24 0.06 10); /* #361119  wine ink */
+  --card: oklch(0.992 0.004 15); /* #fffbfb  warm white */
+  --card-foreground: oklch(0.24 0.06 10);
+  --popover: oklch(0.992 0.004 15);
+  --popover-foreground: oklch(0.24 0.06 10);
+  --primary: oklch(0.41 0.125 12); /* #802438  wine */
+  --primary-foreground: oklch(0.975 0.012 20); /* #fff4f3 */
+  --secondary: oklch(0.925 0.028 12); /* #f8dfe1  pale rosé */
+  --secondary-foreground: oklch(0.34 0.08 10); /* #5a242e */
+  --muted: oklch(0.94 0.018 15); /* #f7e7e7 */
+  --muted-foreground: oklch(0.48 0.05 10); /* #775257  6:1 */
+  --accent: oklch(0.905 0.05 10); /* #ffd3d8  rosé wash */
+  --accent-foreground: oklch(0.34 0.11 10); /* #64162b */
+  --destructive: oklch(0.54 0.2 30); /* #c92516 */
+  --success: oklch(0.48 0.11 150); /* #246e3a */
+  --border: oklch(0.875 0.025 12); /* #e6d0d1 */
+  --input: oklch(0.81 0.035 12); /* #d7b8bb  field edges */
+  --ring: oklch(0.55 0.12 12); /* #ab505f */
   --radius: 0.7rem;
 }
 
 .dark {
-  /* Very dark rose-tinted surfaces (hue 350). Each layer is slightly lighter. */
-  --background: oklch(0.16 0.017 350); /* #130a0e  page */
-  --foreground: oklch(0.95 0.01 350); /* #f4ecef  text */
-  --card: oklch(0.195 0.021 350); /* #1c1116  cards, header */
-  --card-foreground: oklch(0.95 0.01 350);
-  --popover: oklch(0.225 0.025 350); /* #25171d  menus, toasts */
-  --popover-foreground: oklch(0.95 0.01 350);
-  --primary: oklch(0.78 0.115 350); /* #ef98c2  soft pink */
-  --primary-foreground: oklch(0.195 0.035 350);
-  --secondary: oklch(0.27 0.028 350); /* #312128 */
-  --secondary-foreground: oklch(0.925 0.016 350);
-  --muted: oklch(0.245 0.024 350); /* #291c22 */
-  --muted-foreground: oklch(0.74 0.026 350); /* #b8a4ad  8:1 on page */
-  --accent: oklch(0.305 0.045 350); /* #402532 */
-  --accent-foreground: oklch(0.945 0.028 350);
-  --destructive: oklch(0.7 0.17 22); /* warmer red so errors differ from pink */
-  --success: oklch(0.77 0.13 155);
-  --border: oklch(0.325 0.032 350); /* #412d36 */
-  --input: oklch(0.52 0.045 350); /* #7e5f6d  3.2:1 on cards (field edges) */
-  --ring: oklch(0.72 0.105 350);
+  /* Deep wine surfaces climb in even steps: page < card < popover < muted < secondary < accent */
+  --background: oklch(0.18 0.046 4); /* #21070f  deep wine page */
+  --foreground: oklch(0.965 0.012 15); /* #fbf0f1  rosé-white text */
+  --card: oklch(0.212 0.05 4); /* #2b0d16  cards, header */
+  --card-foreground: oklch(0.965 0.012 15);
+  --popover: oklch(0.245 0.054 4); /* #35141d  menus, toasts */
+  --popover-foreground: oklch(0.965 0.012 15);
+  --primary: oklch(0.82 0.09 8); /* #f8acb9  rosé */
+  --primary-foreground: oklch(0.2 0.05 4); /* #280b13 */
+  --secondary: oklch(0.285 0.055 4); /* #401e27 */
+  --secondary-foreground: oklch(0.95 0.015 5); /* #f8ebed */
+  --muted: oklch(0.23 0.046 4); /* #2e131a */
+  --muted-foreground: oklch(0.77 0.035 5); /* #c9abb1  9:1 on page */
+  --accent: oklch(0.33 0.068 2); /* #512533 */
+  --accent-foreground: oklch(0.97 0.01 5); /* #fcf2f4 */
+  --destructive: oklch(0.73 0.15 27); /* #f87f73  coral red */
+  --success: oklch(0.8 0.14 150); /* #75d78d */
+  /* Translucent rosé-white instead of solid grey: lines and field fills blend
+     into whatever wine surface they sit on, so inputs never look grey. */
+  --border: oklch(0.95 0.03 5 / 11%);
+  --input: oklch(0.95 0.03 5 / 16%);
+  --ring: oklch(0.77 0.08 8); /* #e29faa */
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 24%, transparent) transparent;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
   html {
     @apply font-sans;
   }
   ::selection {
-    background: color-mix(in oklch, var(--primary) 24%, transparent);
+    background: color-mix(in oklch, var(--primary) 30%, transparent);
   }
 }
 
