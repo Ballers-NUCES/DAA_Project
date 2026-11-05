@@ -27,6 +27,7 @@ interface AlgorithmPanelProps {
   datasets: DatasetRow[]
   datasetTitle: string
   datasetDescription: string
+  fileHint: string
   file: File | null
   status: WorkflowStatus
   error: string | null
@@ -45,6 +46,7 @@ export function AlgorithmPanel({
   datasets,
   datasetTitle,
   datasetDescription,
+  fileHint,
   file,
   status,
   error,
@@ -73,10 +75,16 @@ export function AlgorithmPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          <FilePicker id={`${id}-file`} file={file} disabled={running} onFileChange={onFileChange} />
+          <FilePicker
+            id={`${id}-file`}
+            file={file}
+            fileHint={fileHint}
+            disabled={running}
+            onFileChange={onFileChange}
+          />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button size="lg" className="h-10 px-5" disabled={!file || running} onClick={onRun}>
-              {running ? <Spinner /> : <PlayIcon />}
+              {running ? <Spinner /> : <PlayIcon aria-hidden="true" />}
               {running ? "Running…" : actionLabel}
             </Button>
             <p className="text-xs leading-relaxed text-muted-foreground">

@@ -1,3 +1,4 @@
+import { useRef } from "react"
 import {
   CalculatorIcon,
   CheckCircle2Icon,
@@ -55,6 +56,8 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
     updateOutputDirectory,
     generate,
   } = workflow
+  const directoryInputRef = useRef<HTMLInputElement>(null)
+  const seedInputRef = useRef<HTMLInputElement>(null)
   const running = status === "running"
 
   return (
@@ -72,7 +75,13 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
           <form
             onSubmit={(event) => {
               event.preventDefault()
-              void generate()
+              void generate().then((firstInvalidField) => {
+                if (firstInvalidField === "directory") {
+                  directoryInputRef.current?.focus()
+                } else if (firstInvalidField === "seed") {
+                  seedInputRef.current?.focus()
+                }
+              })
             }}
           >
             <FieldGroup>
@@ -80,16 +89,19 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
                 <FieldLabel htmlFor="output-directory">Output directory</FieldLabel>
                 <InputGroup className="h-11 bg-background">
                   <InputGroupInput
+                    ref={directoryInputRef}
                     id="output-directory"
+                    name="output-directory"
+                    autoComplete="off"
                     value={outputDirectory}
                     onChange={(event) => updateOutputDirectory(event.target.value)}
-                    placeholder="/path/to/datasets"
+                    placeholder="C:\Users\You\Desktop\datasets"
                     aria-invalid={directoryError ? true : undefined}
                     aria-describedby={`output-directory-description${directoryError ? " output-directory-error" : ""}`}
                     disabled={running}
                   />
                   <InputGroupAddon align="inline-start">
-                    <FolderOpenIcon className="size-4" />
+                    <FolderOpenIcon className="size-4" aria-hidden="true" />
                   </InputGroupAddon>
                 </InputGroup>
                 <FieldDescription id="output-directory-description" className="text-xs">
@@ -102,7 +114,9 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
                 <FieldLabel htmlFor="base-seed">Base seed</FieldLabel>
                 <InputGroup className="h-11 bg-background">
                   <InputGroupInput
+                    ref={seedInputRef}
                     id="base-seed"
+                    name="base-seed"
                     type="text"
                     inputMode="numeric"
                     autoComplete="off"
@@ -122,7 +136,7 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button type="submit" size="lg" className="h-10 px-5" disabled={running}>
-                  {running ? <Spinner /> : <DatabaseIcon />}
+                  {running ? <Spinner /> : <DatabaseIcon aria-hidden="true" />}
                   {running ? "Generating…" : "Generate all datasets"}
                 </Button>
                 <p className="text-xs text-muted-foreground">10 closest-pair + 10 multiplication files</p>
@@ -132,26 +146,35 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
 
           <Separator className="my-6" />
 
-          <div aria-live="polite" aria-busy={running}>
+          <div aria-busy={running}>
             {status === "error" && (
               <Alert variant="destructive">
-                <CircleAlertIcon className="size-4" />
+                <CircleAlertIcon className="size-4" aria-hidden="true" />
                 <AlertTitle>Unable to generate datasets</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
             {status === "success" && result && (
               <Alert role="status">
-                <CheckCircle2Icon className="size-4 text-success" />
+                <CheckCircle2Icon className="size-4 text-success" aria-hidden="true" />
                 <AlertTitle>{result.filesGenerated} files generated</AlertTitle>
                 <AlertDescription>
-                  Manifest: <code className="break-all font-mono text-xs">{result.manifestPath}</code>
+                  <span className="block">
+                    Output directory:{" "}
+                    <code className="break-all font-mono text-xs">{result.outputDirectory}</code>
+                  </span>
+                  <span className="mt-1 block">
+                    Manifest: <code className="break-all font-mono text-xs">{result.manifestPath}</code>
+                  </span>
                 </AlertDescription>
               </Alert>
             )}
             {status === "idle" && (
-              <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
-                <InfoIcon className="mt-0.5 size-4 shrink-0" />
+              <div
+                className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground"
+                role="status"
+              >
+                <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <p>The generator writes every dataset and records the seed used for each file.</p>
               </div>
             )}
@@ -168,7 +191,7 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
       <ItemGroup className="grid gap-3 sm:grid-cols-2">
         <Item variant="muted" role="listitem" className="rounded-xl bg-card">
           <ItemMedia variant="icon" className="size-10 rounded-xl bg-accent text-accent-foreground">
-            <CrosshairIcon className="size-5" />
+            <CrosshairIcon className="size-5" aria-hidden="true" />
           </ItemMedia>
           <ItemContent className="min-w-0">
             <ItemTitle>Closest-pair inputs</ItemTitle>
@@ -182,7 +205,7 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
         </Item>
         <Item variant="muted" role="listitem" className="rounded-xl bg-card">
           <ItemMedia variant="icon" className="size-10 rounded-xl bg-accent text-accent-foreground">
-            <CalculatorIcon className="size-5" />
+            <CalculatorIcon className="size-5" aria-hidden="true" />
           </ItemMedia>
           <ItemContent className="min-w-0">
             <ItemTitle>Multiplication inputs</ItemTitle>

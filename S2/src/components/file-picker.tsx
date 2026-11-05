@@ -11,17 +11,24 @@ import {
 interface FilePickerProps {
   id: string
   file: File | null
+  fileHint: string
   disabled?: boolean
   onFileChange: (file: File | null) => void
 }
 
+const byteFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
+const fileSizeFormatter = new Intl.NumberFormat(undefined, {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
+
 function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024) return `${byteFormatter.format(bytes)} B`
+  if (bytes < 1024 * 1024) return `${fileSizeFormatter.format(bytes / 1024)} KB`
+  return `${fileSizeFormatter.format(bytes / (1024 * 1024))} MB`
 }
 
-export function FilePicker({ id, file, disabled, onFileChange }: FilePickerProps) {
+export function FilePicker({ id, file, fileHint, disabled, onFileChange }: FilePickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const descriptionId = `${id}-description`
   const openPicker = () => {
@@ -38,19 +45,13 @@ export function FilePicker({ id, file, disabled, onFileChange }: FilePickerProps
           placeholder="Select a plain-text dataset"
           readOnly
           disabled={disabled}
-          className="cursor-pointer"
-          onClick={openPicker}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault()
-              openPicker()
-            }
-          }}
+          tabIndex={-1}
+          className="cursor-default"
           aria-describedby={descriptionId}
         />
         {file && (
           <InputGroupAddon align="inline-end" className="text-success">
-            <CheckCircle2Icon className="size-4" />
+            <CheckCircle2Icon className="size-4" aria-hidden="true" />
           </InputGroupAddon>
         )}
         <InputGroupAddon align="inline-end">
@@ -60,7 +61,7 @@ export function FilePicker({ id, file, disabled, onFileChange }: FilePickerProps
             disabled={disabled}
             onClick={openPicker}
           >
-            <FolderOpenIcon />
+            <FolderOpenIcon aria-hidden="true" />
             Browse
           </InputGroupButton>
         </InputGroupAddon>
@@ -79,9 +80,7 @@ export function FilePicker({ id, file, disabled, onFileChange }: FilePickerProps
         }}
       />
       <FieldDescription id={descriptionId} className="text-xs">
-        {file
-          ? `${formatFileSize(file.size)} · Ready to run`
-          : "Choose cp01-cp10 or im01-im10. Files are assumed valid."}
+        {file ? `${formatFileSize(file.size)} · Ready to run` : fileHint}
       </FieldDescription>
     </Field>
   )

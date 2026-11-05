@@ -52,6 +52,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", applyTheme)
   }, [theme])
 
+  useEffect(() => {
+    document
+      .querySelector("meta[name=theme-color]")
+      ?.setAttribute("content", resolvedTheme === "dark" ? "#21070f" : "#fdf0f0")
+  }, [resolvedTheme])
+
   const setTheme = useCallback((nextTheme: Theme) => {
     try {
       localStorage.setItem(STORAGE_KEY, nextTheme)

@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from "react"
-import { toast } from "@/components/ui/toast"
 import { generateDatasets } from "@/lib/backend"
 import { validateSeed } from "@/lib/validation"
 import type { GenerationResult, WorkflowStatus } from "@/types/workflow"
@@ -19,7 +18,6 @@ export function useGeneratorWorkflow() {
     setStatus("idle")
     setResult(null)
     setError(null)
-    setDirectoryError(null)
   }, [])
 
   const updateBaseSeed = useCallback((value: string) => {
@@ -30,47 +28,45 @@ export function useGeneratorWorkflow() {
 
   const updateOutputDirectory = useCallback((value: string) => {
     setOutputDirectory(value)
+    setDirectoryError(null)
     resetOutput()
   }, [resetOutput])
 
   const generate = useCallback(async () => {
-    if (status === "running") return
+    if (status === "running") return null
 
     const nextSeedError = validateSeed(baseSeed)
-    if (nextSeedError) {
+    const nextDirectoryError = outputDirectory.trim()
+      ? null
+      : "Enter an output directory before generating datasets."
+    if (nextSeedError || nextDirectoryError) {
       resetOutput()
       setSeedError(nextSeedError)
-      return
-    }
-    if (!outputDirectory.trim()) {
-      resetOutput()
-      setDirectoryError("Enter an output directory before generating datasets.")
-      return
+      setDirectoryError(nextDirectoryError)
+      return nextDirectoryError ? "directory" : "seed"
     }
 
     const currentRequest = ++requestId.current
     setStatus("running")
     setResult(null)
     setError(null)
+    setSeedError(null)
+    setDirectoryError(null)
 
     try {
       const nextResult = await generateDatasets({
         outputDirectory: outputDirectory.trim(),
         seed: baseSeed.trim(),
       })
-      if (currentRequest !== requestId.current) return
+      if (currentRequest !== requestId.current) return null
       setResult(nextResult)
       setStatus("success")
-      toast.add({
-        title: `${nextResult.filesGenerated} datasets generated`,
-        description: "The input files and seed manifest were saved.",
-        type: "success",
-      })
     } catch (reason) {
-      if (currentRequest !== requestId.current) return
+      if (currentRequest !== requestId.current) return null
       setError(reason instanceof Error ? reason.message : "Datasets could not be generated.")
       setStatus("error")
     }
+    return null
   }, [baseSeed, outputDirectory, resetOutput, status])
 
   return {

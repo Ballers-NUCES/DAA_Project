@@ -19,7 +19,7 @@ function ScrollArea({
         data-slot="scroll-area-viewport"
         role={viewportLabel ? "region" : undefined}
         aria-label={viewportLabel}
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-[3px] focus-visible:ring-ring"
       >
         <ScrollAreaPrimitive.Content>{children}</ScrollAreaPrimitive.Content>
       </ScrollAreaPrimitive.Viewport>
@@ -47,7 +47,7 @@ function ScrollBar({
     >
       <ScrollAreaPrimitive.Thumb
         data-slot="scroll-area-thumb"
-        className="relative flex-1 rounded-full bg-foreground/25 hover:bg-foreground/40"
+        className="relative flex-1 rounded-full bg-ring hover:bg-primary"
       />
     </ScrollAreaPrimitive.Scrollbar>
   )

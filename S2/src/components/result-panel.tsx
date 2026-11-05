@@ -25,7 +25,7 @@ export function ResultPanel({ status, error, idleDescription, children }: Result
         <Empty className="border bg-muted/20 py-8">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <PlayIcon className="size-4" />
+              <PlayIcon className="size-4" aria-hidden="true" />
             </EmptyMedia>
             <EmptyTitle>No run yet</EmptyTitle>
             <EmptyDescription>{idleDescription}</EmptyDescription>
@@ -49,7 +49,7 @@ export function ResultPanel({ status, error, idleDescription, children }: Result
 
       {status === "error" && (
         <Alert variant="destructive">
-          <CircleAlertIcon className="size-4" />
+          <CircleAlertIcon className="size-4" aria-hidden="true" />
           <AlertTitle>Unable to complete the run</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>

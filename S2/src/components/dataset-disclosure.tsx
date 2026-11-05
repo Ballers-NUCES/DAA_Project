@@ -29,11 +29,14 @@ export function DatasetDisclosure({ title, description, rows }: DatasetDisclosur
       <Card>
         <CardHeader className="pb-3">
           <h3>
-            <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+            <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-lg text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-3 focus-visible:ring-ring">
               <span className="font-heading text-base font-medium">{title}</span>
               <span className="flex items-center gap-2">
                 <Badge variant="secondary">{rows.length} files</Badge>
-                <ChevronDownIcon className="size-4 text-muted-foreground transition-transform duration-200 group-data-panel-open:rotate-180" />
+                <ChevronDownIcon
+                  aria-hidden="true"
+                  className="size-4 text-muted-foreground transition-transform duration-200 group-data-panel-open:rotate-180"
+                />
               </span>
             </CollapsibleTrigger>
           </h3>
@@ -54,7 +57,9 @@ export function DatasetDisclosure({ title, description, rows }: DatasetDisclosur
                 {rows.map((row) => (
                   <TableRow key={row.file}>
                     <TableCell className="font-mono text-xs font-medium">{row.file}</TableCell>
-                    <TableCell className="whitespace-normal text-xs">{row.size}</TableCell>
+                    <TableCell className="whitespace-normal text-xs tabular-nums">
+                      {row.size}
+                    </TableCell>
                     <TableCell className="whitespace-normal text-xs text-muted-foreground">
                       {row.description}
                     </TableCell>

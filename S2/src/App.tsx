@@ -1,11 +1,9 @@
-import { useEffect } from "react"
 import { CalculatorIcon, CrosshairIcon, DatabaseIcon } from "lucide-react"
 import { AlgorithmPanel } from "@/components/algorithm-panel"
 import { ClosestPairResultView, MultiplicationResultView } from "@/components/algorithm-results"
 import { AppHeader } from "@/components/app-header"
 import { GeneratorPanel } from "@/components/generator-panel"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { toast } from "@/components/ui/toast"
 import { closestPairDatasets, multiplicationDatasets } from "@/data/datasets"
 import { useAlgorithmWorkflow } from "@/hooks/use-algorithm-workflow"
 import { useGeneratorWorkflow } from "@/hooks/use-generator-workflow"
@@ -16,24 +14,6 @@ function App() {
   const karatsuba = useAlgorithmWorkflow(runKaratsuba)
   const generator = useGeneratorWorkflow()
 
-  useEffect(() => {
-    if (closestPair.status !== "success") return
-    toast.add({
-      title: "Closest pair calculated",
-      description: "The results are ready to inspect.",
-      type: "success",
-    })
-  }, [closestPair.status])
-
-  useEffect(() => {
-    if (karatsuba.status !== "success") return
-    toast.add({
-      title: "Multiplication complete",
-      description: "The product and running time are ready.",
-      type: "success",
-    })
-  }, [karatsuba.status])
-
   return (
     <div className="flex h-svh flex-col bg-background text-foreground">
       <AppHeader />
@@ -41,7 +21,7 @@ function App() {
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
           <div className="mb-6 max-w-2xl">
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Algorithm workspace</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">Algorithm workspace</h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
               Run the required algorithms, inspect their traces, or generate input datasets.
             </p>
@@ -57,7 +37,7 @@ function App() {
                 aria-label="Closest Pair"
                 className="h-full min-w-0 gap-2 px-2"
               >
-                <CrosshairIcon className="size-4" />
+                <CrosshairIcon className="size-4" aria-hidden="true" />
                 <span className="max-[430px]:sr-only truncate">Closest Pair</span>
               </TabsTrigger>
               <TabsTrigger
@@ -65,7 +45,7 @@ function App() {
                 aria-label="Karatsuba"
                 className="h-full min-w-0 gap-2 px-2"
               >
-                <CalculatorIcon className="size-4" />
+                <CalculatorIcon className="size-4" aria-hidden="true" />
                 <span className="max-[430px]:sr-only truncate">Karatsuba</span>
               </TabsTrigger>
               <TabsTrigger
@@ -73,7 +53,7 @@ function App() {
                 aria-label="Dataset Generator"
                 className="h-full min-w-0 gap-2 px-2"
               >
-                <DatabaseIcon className="size-4" />
+                <DatabaseIcon className="size-4" aria-hidden="true" />
                 <span className="max-[430px]:sr-only truncate">Generator</span>
               </TabsTrigger>
             </TabsList>
@@ -89,6 +69,7 @@ function App() {
                 datasets={closestPairDatasets}
                 datasetTitle="Closest-pair datasets"
                 datasetDescription="Input sizes and edge cases for cp01–cp10."
+                fileHint="Choose cp01–cp10. Files are assumed valid."
                 file={closestPair.file}
                 status={closestPair.status}
                 error={closestPair.error}
@@ -110,6 +91,7 @@ function App() {
                 datasets={multiplicationDatasets}
                 datasetTitle="Multiplication datasets"
                 datasetDescription="Operand sizes and edge cases for im01–im10."
+                fileHint="Choose im01–im10. Files are assumed valid."
                 file={karatsuba.file}
                 status={karatsuba.status}
                 error={karatsuba.error}
