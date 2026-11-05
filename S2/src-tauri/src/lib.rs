@@ -2,22 +2,35 @@ mod generator;
 mod karatsuba;
 
 use generator::GenerationResult;
-use karatsuba::{DecimalInput, MultiplicationBatchResult};
+use karatsuba::{DecimalInput, KaratsubaProgressEvent, MultiplicationBatchResult};
+use tauri::ipc::Channel;
 
 #[tauri::command]
-async fn run_karatsuba_folder(directory: String) -> Result<MultiplicationBatchResult, String> {
-    tauri::async_runtime::spawn_blocking(move || karatsuba::multiply_folder(&directory))
-        .await
-        .map_err(|error| format!("The Karatsuba batch could not complete: {error}"))?
+async fn run_karatsuba_folder(
+    directory: String,
+    on_progress: Channel<KaratsubaProgressEvent>,
+) -> Result<MultiplicationBatchResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        karatsuba::multiply_folder_with_progress(&directory, |event| {
+            let _ = on_progress.send(event);
+        })
+    })
+    .await
+    .map_err(|error| format!("The Karatsuba batch could not complete: {error}"))?
 }
 
 #[tauri::command]
 async fn run_karatsuba_files(
     inputs: Vec<DecimalInput>,
+    on_progress: Channel<KaratsubaProgressEvent>,
 ) -> Result<MultiplicationBatchResult, String> {
-    tauri::async_runtime::spawn_blocking(move || karatsuba::multiply_files(inputs))
-        .await
-        .map_err(|error| format!("The Karatsuba batch could not complete: {error}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        karatsuba::multiply_files_with_progress(inputs, |event| {
+            let _ = on_progress.send(event);
+        })
+    })
+    .await
+    .map_err(|error| format!("The Karatsuba batch could not complete: {error}"))?
 }
 
 #[tauri::command]

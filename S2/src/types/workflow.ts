@@ -30,9 +30,22 @@ export interface MultiplicationResult {
 
 export interface AlgorithmFileResult<T> {
   fileName: string
+  status?: "pending" | "running" | "completed"
   result?: T
   error?: string
 }
+
+export type KaratsubaProgressEvent =
+  | {
+      kind: "started"
+      index: number
+      fileName: string
+    }
+  | {
+      kind: "finished"
+      index: number
+      file: AlgorithmFileResult<MultiplicationResult>
+    }
 
 export interface AlgorithmBatchResult<T> {
   source: string

@@ -50,15 +50,19 @@ export function ResultPanel({
         )}
 
         {status === "running" && (
-          <Empty className="border-primary/20 bg-muted/20 py-8">
-            <EmptyHeader>
-              <EmptyMedia variant="icon" className="bg-secondary text-secondary-foreground">
-                <Clock3Icon className="size-4" aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>{runningTitle}</EmptyTitle>
-              <EmptyDescription>{runningDescription}</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          children ? (
+            <div>{children}</div>
+          ) : (
+            <Empty className="border-primary/20 bg-muted/20 py-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon" className="bg-secondary text-secondary-foreground">
+                  <Clock3Icon className="size-4" aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>{runningTitle}</EmptyTitle>
+                <EmptyDescription>{runningDescription}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )
         )}
 
         {status === "error" && (

@@ -1,8 +1,9 @@
-import { invoke } from "@tauri-apps/api/core"
+import { Channel, invoke } from "@tauri-apps/api/core"
 import { open } from "@tauri-apps/plugin-dialog"
 import type {
   ClosestPairResult,
   GenerationResult,
+  KaratsubaProgressEvent,
   MultiplicationBatchResult,
 } from "@/types/workflow"
 
@@ -13,14 +14,23 @@ export async function runClosestPair(file: File): Promise<ClosestPairResult> {
   )
 }
 
-export async function runKaratsuba(source: {
-  mode: "folder" | "files"
-  directory: string
-  files: File[]
-}): Promise<MultiplicationBatchResult> {
+export async function runKaratsuba(
+  source: {
+    mode: "folder" | "files"
+    directory: string
+    files: File[]
+  },
+  onProgress?: (event: KaratsubaProgressEvent) => void,
+): Promise<MultiplicationBatchResult> {
+  const progressChannel = new Channel<KaratsubaProgressEvent>()
+  if (onProgress) {
+    progressChannel.onmessage = onProgress
+  }
+
   if (source.mode === "folder") {
     return invoke<MultiplicationBatchResult>("run_karatsuba_folder", {
       directory: source.directory,
+      onProgress: progressChannel,
     })
   }
 
@@ -30,7 +40,10 @@ export async function runKaratsuba(source: {
       content: await file.text(),
     })),
   )
-  return invoke<MultiplicationBatchResult>("run_karatsuba_files", { inputs })
+  return invoke<MultiplicationBatchResult>("run_karatsuba_files", {
+    inputs,
+    onProgress: progressChannel,
+  })
 }
 
 export async function generateDatasets(options: {

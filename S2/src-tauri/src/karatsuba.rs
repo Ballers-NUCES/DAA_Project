@@ -19,7 +19,7 @@ const MULTIPLICATION_FILES: [&str; 10] = [
     "im09.txt", "im10.txt",
 ];
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AlgorithmStep {
     pub title: String,
@@ -28,7 +28,7 @@ pub struct AlgorithmStep {
     pub depth: Option<usize>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiplicationResult {
     pub product: String,
@@ -45,7 +45,7 @@ pub struct DecimalInput {
     pub content: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiplicationFileResult {
     pub file_name: String,
@@ -53,6 +53,18 @@ pub struct MultiplicationFileResult {
     pub result: Option<MultiplicationResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum KaratsubaProgressEvent {
+    #[serde(rename_all = "camelCase")]
+    Started { index: usize, file_name: String },
+    #[serde(rename_all = "camelCase")]
+    Finished {
+        index: usize,
+        file: MultiplicationFileResult,
+    },
 }
 
 #[derive(Serialize)]
@@ -130,7 +142,15 @@ pub fn multiply_input(input: &str) -> Result<MultiplicationResult, String> {
     })
 }
 
+#[cfg(test)]
 pub fn multiply_folder(directory: &str) -> Result<MultiplicationBatchResult, String> {
+    multiply_folder_with_progress(directory, |_| {})
+}
+
+pub fn multiply_folder_with_progress(
+    directory: &str,
+    mut on_progress: impl FnMut(KaratsubaProgressEvent),
+) -> Result<MultiplicationBatchResult, String> {
     let directory = directory.trim().trim_matches('"').trim_matches('\'').trim();
     if directory.is_empty() {
         return Err("Enter the Karatsuba dataset folder before running the batch.".to_owned());
@@ -147,15 +167,32 @@ pub fn multiply_folder(directory: &str) -> Result<MultiplicationBatchResult, Str
     }
 
     let inputs = MULTIPLICATION_FILES.iter().map(|file_name| {
-        let content = fs::read_to_string(directory_path.join(file_name)).map_err(|error| {
-            format!("The file could not be read: {error}. Generate the datasets or choose a different file.")
-        });
-        ((*file_name).to_owned(), content)
+        let path = directory_path.join(file_name);
+        (
+            (*file_name).to_owned(),
+            move || {
+                fs::read_to_string(&path).map_err(|error| {
+                    format!("The file could not be read: {error}. Generate the datasets or choose a different file.")
+                })
+            },
+        )
     });
-    Ok(multiply_named_files(directory.to_owned(), inputs))
+    Ok(multiply_named_files(
+        directory.to_owned(),
+        inputs,
+        &mut on_progress,
+    ))
 }
 
+#[cfg(test)]
 pub fn multiply_files(inputs: Vec<DecimalInput>) -> Result<MultiplicationBatchResult, String> {
+    multiply_files_with_progress(inputs, |_| {})
+}
+
+pub fn multiply_files_with_progress(
+    inputs: Vec<DecimalInput>,
+    mut on_progress: impl FnMut(KaratsubaProgressEvent),
+) -> Result<MultiplicationBatchResult, String> {
     if inputs.is_empty() {
         return Err(
             "Choose at least one multiplication input file before running Karatsuba.".to_owned(),
@@ -164,36 +201,55 @@ pub fn multiply_files(inputs: Vec<DecimalInput>) -> Result<MultiplicationBatchRe
 
     let inputs = inputs
         .into_iter()
-        .map(|input| (input.name, Ok(input.content)));
-    Ok(multiply_named_files("Selected files".to_owned(), inputs))
+        .map(|input| (input.name, move || Ok(input.content)));
+    Ok(multiply_named_files(
+        "Selected files".to_owned(),
+        inputs,
+        &mut on_progress,
+    ))
 }
 
-fn multiply_named_files(
+fn multiply_named_files<F>(
     source: String,
-    inputs: impl IntoIterator<Item = (String, Result<String, String>)>,
-) -> MultiplicationBatchResult {
+    inputs: impl IntoIterator<Item = (String, F)>,
+    on_progress: &mut impl FnMut(KaratsubaProgressEvent),
+) -> MultiplicationBatchResult
+where
+    F: FnOnce() -> Result<String, String>,
+{
     let mut files = Vec::new();
     let mut succeeded = 0;
     let mut total_elapsed_micros = 0_u128;
 
-    for (file_name, input) in inputs {
-        let outcome = input.and_then(|content| multiply_input(&content));
-        match outcome {
+    for (index, (file_name, load_input)) in inputs.into_iter().enumerate() {
+        on_progress(KaratsubaProgressEvent::Started {
+            index,
+            file_name: file_name.clone(),
+        });
+
+        let outcome = load_input().and_then(|content| multiply_input(&content));
+        let file_result = match outcome {
             Ok(result) => {
                 total_elapsed_micros += u128::from(result.elapsed_micros);
                 succeeded += 1;
-                files.push(MultiplicationFileResult {
+                MultiplicationFileResult {
                     file_name,
                     result: Some(result),
                     error: None,
-                });
+                }
             }
-            Err(error) => files.push(MultiplicationFileResult {
+            Err(error) => MultiplicationFileResult {
                 file_name,
                 result: None,
                 error: Some(error),
-            }),
-        }
+            },
+        };
+
+        on_progress(KaratsubaProgressEvent::Finished {
+            index,
+            file: file_result.clone(),
+        });
+        files.push(file_result);
     }
 
     let total_files = files.len();

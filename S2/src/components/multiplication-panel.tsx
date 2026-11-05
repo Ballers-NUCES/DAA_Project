@@ -187,10 +187,10 @@ export function MultiplicationPanel({ workflow }: MultiplicationPanelProps) {
               : "Choose one or more files and run Karatsuba to see their products and running times."}
             runningTitle="Karatsuba batch in progress"
             runningDescription={sourceMode === "folder"
-              ? "Multiplying im01 through im10. Each file will appear in the batch report when the run finishes."
-              : `Processing ${files.length} selected ${files.length === 1 ? "file" : "files"}. The batch report will appear here when finished.`}
+              ? "Multiplying im01 through im10. Each file updates in the batch report as it finishes."
+              : `Processing ${files.length} selected ${files.length === 1 ? "file" : "files"}. Each file updates in the batch report as it finishes.`}
           >
-            {result && <MultiplicationBatchResultView batch={result} />}
+            {result && <MultiplicationBatchResultView batch={result} running={running} />}
           </ResultPanel>
         </CardContent>
       </Card>

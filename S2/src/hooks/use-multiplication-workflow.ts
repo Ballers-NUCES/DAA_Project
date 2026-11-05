@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react"
+import { multiplicationDatasets } from "@/data/datasets"
 import { runKaratsuba } from "@/lib/backend"
-import type { MultiplicationBatchResult, WorkflowStatus } from "@/types/workflow"
+import type {
+  KaratsubaProgressEvent,
+  MultiplicationBatchResult,
+  WorkflowStatus,
+} from "@/types/workflow"
 
 export type MultiplicationSourceMode = "folder" | "files"
 
@@ -63,21 +68,92 @@ export function useMultiplicationWorkflow(defaultDirectory?: string) {
     }
 
     const currentRequest = ++requestId.current
+    const initialFileNames =
+      sourceMode === "folder"
+        ? multiplicationDatasets.map((row) => `${row.file}.txt`)
+        : files.map((file) => file.name)
+
     setStatus("running")
-    setResult(null)
     setError(null)
+    setResult({
+      source: sourceMode === "folder" ? trimmedDirectory : "Selected files",
+      files: initialFileNames.map((fileName) => ({
+        fileName,
+        status: "pending",
+      })),
+      totalFiles: initialFileNames.length,
+      succeeded: 0,
+      failed: 0,
+      totalElapsedMicros: 0,
+    })
+
+    const handleProgress = (event: KaratsubaProgressEvent) => {
+      if (currentRequest !== requestId.current) return
+      setResult((prev) => {
+        if (!prev) return prev
+        const nextFiles = [...prev.files]
+        if (event.kind === "started") {
+          nextFiles[event.index] = {
+            fileName: event.fileName,
+            status: "running",
+          }
+          return {
+            ...prev,
+            files: nextFiles,
+          }
+        }
+
+        const completedFile = {
+          ...event.file,
+          status: "completed" as const,
+        }
+        nextFiles[event.index] = completedFile
+
+        let succeeded = 0
+        let failed = 0
+        let totalElapsedMicros = 0
+        for (const item of nextFiles) {
+          if (item.status === "completed") {
+            if (item.result) {
+              succeeded += 1
+              totalElapsedMicros += item.result.elapsedMicros
+            } else {
+              failed += 1
+            }
+          }
+        }
+
+        return {
+          ...prev,
+          files: nextFiles,
+          succeeded,
+          failed,
+          totalElapsedMicros,
+        }
+      })
+    }
 
     try {
-      const nextResult = await runKaratsuba({
-        mode: sourceMode,
-        directory: trimmedDirectory,
-        files,
-      })
+      const nextResult = await runKaratsuba(
+        {
+          mode: sourceMode,
+          directory: trimmedDirectory,
+          files,
+        },
+        handleProgress,
+      )
       if (currentRequest !== requestId.current) return
-      setResult(nextResult)
+      setResult({
+        ...nextResult,
+        files: nextResult.files.map((file) => ({
+          ...file,
+          status: "completed",
+        })),
+      })
       setStatus("success")
     } catch (reason) {
       if (currentRequest !== requestId.current) return
+      setResult(null)
       setError(
         reason instanceof Error
           ? reason.message
