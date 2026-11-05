@@ -18,9 +18,15 @@ function App() {
 
   return (
     <div className="flex h-svh flex-col bg-background text-foreground">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:ring-3 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
       <AppHeader />
 
-      <main className="flex-1 overflow-y-auto">
+      <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
           <div className="mb-6 max-w-2xl">
             <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">Algorithm workspace</h1>

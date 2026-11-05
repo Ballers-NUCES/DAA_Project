@@ -2,11 +2,13 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
+use std::thread;
 use std::time::Instant;
 
 const BASE: u64 = 1_000_000_000;
 const BASE_DIGITS: usize = 9;
-const KARATSUBA_CUTOFF: usize = 32;
+const KARATSUBA_CUTOFF: usize = 64;
+const PARALLEL_THRESHOLD: usize = 16_384;
 const TRACE_CUTOFF: usize = 1;
 const MAX_TRACE_DIGITS: usize = 101;
 const MAX_TRACE_STEPS: usize = 2_000;
@@ -99,15 +101,8 @@ pub fn multiply_input(input: &str) -> Result<MultiplicationResult, String> {
     let right_limbs = limbs_from_decimal(&right);
 
     // Only the multiplication is timed; parsing, formatting, and tracing stay outside.
-    let mut timed_trace = TraceRecorder::disabled();
     let started = Instant::now();
-    let product_limbs = karatsuba(
-        &left_limbs,
-        &right_limbs,
-        KARATSUBA_CUTOFF,
-        0,
-        &mut timed_trace,
-    );
+    let product_limbs = karatsuba_parallel(&left_limbs, &right_limbs);
     let elapsed_micros = started.elapsed().as_micros().min(u64::MAX as u128) as u64;
 
     let product = limbs_to_decimal(&product_limbs);
@@ -332,16 +327,8 @@ fn karatsuba(
     let z0 = karatsuba(a0, b0, cutoff, depth + 1, trace);
     let z2 = karatsuba(a1, b1, cutoff, depth + 1, trace);
     let z_sum = karatsuba(&a_sum, &b_sum, cutoff, depth + 1, trace);
-    let mut z1 = z_sum;
-    subtract_in_place(&mut z1, &z0);
-    subtract_in_place(&mut z1, &z2);
-
-    let result_len = z0.len().max(split + z1.len()).max(2 * split + z2.len());
-    let mut result = vec![0; result_len];
-    add_shifted(&mut result, &z0, 0);
-    add_shifted(&mut result, &z1, split);
-    add_shifted(&mut result, &z2, 2 * split);
-    trim_limbs(&mut result);
+    let z1 = middle_term(z_sum, &z0, &z2);
+    let result = assemble(&z0, &z1, &z2, split);
 
     if trace.enabled {
         trace.push(
@@ -360,6 +347,65 @@ fn karatsuba(
     result
 }
 
+fn karatsuba_parallel(a: &[u32], b: &[u32]) -> Vec<u32> {
+    karatsuba_parallel_with_threshold(a, b, PARALLEL_THRESHOLD)
+}
+
+fn karatsuba_parallel_with_threshold(a: &[u32], b: &[u32], threshold: usize) -> Vec<u32> {
+    let a = canonical_slice(a);
+    let b = canonical_slice(b);
+
+    if a.is_empty() || b.is_empty() {
+        return Vec::new();
+    }
+    if a.len().max(b.len()) < threshold || a.len().min(b.len()) <= KARATSUBA_CUTOFF {
+        return karatsuba(
+            a,
+            b,
+            KARATSUBA_CUTOFF,
+            0,
+            &mut TraceRecorder::disabled(),
+        );
+    }
+
+    let split = a.len().max(b.len()) / 2;
+    let (a0, a1) = split_limbs(a, split);
+    let (b0, b1) = split_limbs(b, split);
+    let a_sum = add(a0, a1);
+    let b_sum = add(b0, b1);
+
+    thread::scope(|scope| {
+        let z0_worker = scope.spawn(move || karatsuba_parallel_with_threshold(a0, b0, threshold));
+        let z2_worker = scope.spawn(move || karatsuba_parallel_with_threshold(a1, b1, threshold));
+        let z_sum = karatsuba_parallel_with_threshold(&a_sum, &b_sum, threshold);
+
+        let z0 = z0_worker
+            .join()
+            .expect("the Karatsuba z0 worker thread panicked");
+        let z2 = z2_worker
+            .join()
+            .expect("the Karatsuba z2 worker thread panicked");
+        let z1 = middle_term(z_sum, &z0, &z2);
+        assemble(&z0, &z1, &z2, split)
+    })
+}
+
+fn middle_term(mut z_sum: Vec<u32>, z0: &[u32], z2: &[u32]) -> Vec<u32> {
+    subtract_in_place(&mut z_sum, z0);
+    subtract_in_place(&mut z_sum, z2);
+    z_sum
+}
+
+fn assemble(z0: &[u32], z1: &[u32], z2: &[u32], split: usize) -> Vec<u32> {
+    let result_len = z0.len().max(split + z1.len()).max(2 * split + z2.len());
+    let mut result = vec![0; result_len];
+    add_shifted(&mut result, z0, 0);
+    add_shifted(&mut result, z1, split);
+    add_shifted(&mut result, z2, 2 * split);
+    trim_limbs(&mut result);
+    result
+}
+
 fn split_limbs(values: &[u32], split: usize) -> (&[u32], &[u32]) {
     let low_end = values.len().min(split);
     let high = if values.len() > split {
@@ -375,27 +421,30 @@ fn schoolbook(a: &[u32], b: &[u32]) -> Vec<u32> {
         return Vec::new();
     }
 
-    let mut product = vec![0_u32; a.len() + b.len()];
-    for (i, &left) in a.iter().enumerate() {
-        let mut carry = 0_u64;
-        for (j, &right) in b.iter().enumerate() {
-            let index = i + j;
-            let total = u64::from(left) * u64::from(right) + u64::from(product[index]) + carry;
-            product[index] = (total % BASE) as u32;
-            carry = total / BASE;
+    // Iterate the shorter operand so normalization passes cost less.
+    let (a, b) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    const ROWS_PER_PASS: usize = 16;
+
+    let mut accumulated = vec![0_u64; a.len() + b.len()];
+    for (chunk_index, rows) in a.chunks(ROWS_PER_PASS).enumerate() {
+        for (row, &left) in rows.iter().enumerate() {
+            let start = chunk_index * ROWS_PER_PASS + row;
+            let left = u64::from(left);
+            for (slot, &right) in accumulated[start..start + b.len()].iter_mut().zip(b) {
+                *slot += left * u64::from(right);
+            }
         }
 
-        let mut index = i + b.len();
-        while carry > 0 {
-            if index == product.len() {
-                product.push(0);
-            }
-            let total = u64::from(product[index]) + carry;
-            product[index] = (total % BASE) as u32;
+        let mut carry = 0_u64;
+        for slot in &mut accumulated {
+            let total = *slot + carry;
+            *slot = total % BASE;
             carry = total / BASE;
-            index += 1;
         }
+        debug_assert_eq!(carry, 0, "schoolbook normalization overflowed its buffer");
     }
+
+    let mut product: Vec<u32> = accumulated.into_iter().map(|value| value as u32).collect();
     trim_limbs(&mut product);
     product
 }
@@ -522,6 +571,23 @@ mod tests {
         let result = multiply_input(&format!("{left}\n{right}")).unwrap();
         assert_eq!(result.product, reference_product(&left, &right));
         assert!(result.trace.is_none());
+    }
+
+    #[test]
+    fn parallel_and_sequential_paths_agree() {
+        let left = "12345678901234567890".repeat(500);
+        let right = "98765432109876543210".repeat(500);
+        let left_limbs = limbs_from_decimal(&left);
+        let right_limbs = limbs_from_decimal(&right);
+        let sequential = karatsuba(
+            &left_limbs,
+            &right_limbs,
+            KARATSUBA_CUTOFF,
+            0,
+            &mut TraceRecorder::disabled(),
+        );
+        let parallel = karatsuba_parallel_with_threshold(&left_limbs, &right_limbs, 1_024);
+        assert_eq!(parallel, sequential);
     }
 
     #[test]

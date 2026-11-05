@@ -33,7 +33,7 @@ function MultiplicationFileRecord({
   return (
     <Collapsible
       defaultOpen={defaultOpen}
-      className="rounded-xl border bg-card transition-colors hover:border-ring/40"
+      className="rounded-xl border bg-card transition-colors hover:border-ring/40 [content-visibility:auto] [contain-intrinsic-size:auto_76px]"
     >
       <h4>
         <CollapsibleTrigger className="group flex w-full flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring sm:flex-nowrap">

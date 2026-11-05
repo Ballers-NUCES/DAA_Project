@@ -184,13 +184,16 @@ export function FilesPicker({ id, files, disabled, onFilesChange }: FilesPickerP
                 {formatFileSize(file.size)}
               </span>
               <Button
+                ref={(node) => {
+                  removeButtonRefs.current[index] = node
+                }}
                 type="button"
                 variant="ghost"
                 size="icon-sm"
                 className="size-7 shrink-0"
                 aria-label={`Remove ${file.name}`}
                 disabled={disabled}
-                onClick={() => onFilesChange(files.filter((_, fileIndex) => fileIndex !== index))}
+                onClick={() => removeFile(index)}
               >
                 <XIcon aria-hidden="true" />
               </Button>
