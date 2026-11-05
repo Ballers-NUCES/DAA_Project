@@ -47,7 +47,8 @@ export function FilePicker({ id, file, fileHint, disabled, onFileChange }: FileP
           readOnly
           disabled={disabled}
           tabIndex={-1}
-          className="cursor-default"
+          onClick={openPicker}
+          className="cursor-pointer"
           aria-describedby={descriptionId}
         />
         {file && (
@@ -105,6 +106,9 @@ export function FilesPicker({ id, files, disabled, onFilesChange }: FilesPickerP
     : files.length === 1
       ? files[0].name
       : `${files.length} files selected`
+  const openPicker = () => {
+    if (!disabled) inputRef.current?.click()
+  }
 
   const removeFile = (index: number) => {
     const focusTarget = index < files.length - 1
@@ -128,7 +132,8 @@ export function FilesPicker({ id, files, disabled, onFilesChange }: FilesPickerP
           readOnly
           disabled={disabled}
           tabIndex={-1}
-          className="cursor-default"
+          onClick={openPicker}
+          className="cursor-pointer"
           aria-describedby={descriptionId}
         />
         {files.length > 0 && (
@@ -142,7 +147,7 @@ export function FilesPicker({ id, files, disabled, onFilesChange }: FilesPickerP
             size="sm"
             variant="secondary"
             disabled={disabled}
-            onClick={() => inputRef.current?.click()}
+            onClick={openPicker}
           >
             <FolderOpenIcon aria-hidden="true" />
             Choose Files

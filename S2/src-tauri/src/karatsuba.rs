@@ -72,6 +72,7 @@ struct TraceRecorder {
 }
 
 impl TraceRecorder {
+    #[cfg(test)]
     fn disabled() -> Self {
         Self {
             enabled: false,
@@ -86,8 +87,12 @@ impl TraceRecorder {
         }
     }
 
+    fn is_active(&self) -> bool {
+        self.enabled && self.steps.len() < MAX_TRACE_STEPS
+    }
+
     fn push(&mut self, depth: usize, title: &str, description: String) {
-        if self.enabled && self.steps.len() < MAX_TRACE_STEPS {
+        if self.is_active() {
             self.steps.push(AlgorithmStep {
                 title: title.to_owned(),
                 description,
@@ -126,7 +131,7 @@ pub fn multiply_input(input: &str) -> Result<MultiplicationResult, String> {
 }
 
 pub fn multiply_folder(directory: &str) -> Result<MultiplicationBatchResult, String> {
-    let directory = directory.trim();
+    let directory = directory.trim().trim_matches('"').trim_matches('\'').trim();
     if directory.is_empty() {
         return Err("Enter the Karatsuba dataset folder before running the batch.".to_owned());
     }
@@ -206,7 +211,7 @@ fn parse_operands(input: &str) -> Result<(String, String), String> {
     let shape_error = || {
         "The input must contain exactly two non-empty decimal integers, one per line.".to_owned()
     };
-    let mut lines = input.lines();
+    let mut lines = input.trim_end().lines();
     let left_line = lines.next().ok_or_else(shape_error)?;
     let right_line = lines.next().ok_or_else(shape_error)?;
     if lines.next().is_some() {
@@ -283,7 +288,7 @@ fn karatsuba(
     let b = canonical_slice(b);
 
     if a.is_empty() || b.is_empty() {
-        if trace.enabled {
+        if trace.is_active() {
             trace.push(depth, "Zero operand", "The product is 0.".to_owned());
         }
         return Vec::new();
@@ -292,7 +297,7 @@ fn karatsuba(
     // A fixed-size schoolbook base case also keeps very unbalanced inputs linear.
     if a.len() <= cutoff || b.len() <= cutoff {
         let product = schoolbook(a, b);
-        if trace.enabled {
+        if trace.is_active() {
             trace.push(
                 depth,
                 "Base-case multiplication",
@@ -314,7 +319,7 @@ fn karatsuba(
     let a_sum = add(a0, a1);
     let b_sum = add(b0, b1);
 
-    if trace.enabled {
+    if trace.is_active() {
         trace.push(
             depth,
             "Split operands",
@@ -336,7 +341,7 @@ fn karatsuba(
     let z1 = middle_term(z_sum, &z0, &z2);
     let result = assemble(&z0, &z1, &z2, split);
 
-    if trace.enabled {
+    if trace.is_active() {
         trace.push(
             depth,
             "Combine Karatsuba products",
@@ -803,6 +808,7 @@ mod tests {
         ] {
             assert_u128_product(left, right);
         }
+        assert_eq!(multiply_input("12\n34\n\n").unwrap().product, "408");
     }
 
     #[test]
@@ -876,7 +882,7 @@ mod tests {
 
     #[test]
     fn rejects_invalid_input() {
-        for input in ["", "1", "1\n", "1\n2\n3", "-1\n2", "1\n2a"] {
+        for input in ["", "1", "1\n", "1\n   \n", "1\n2\n3", "-1\n2", "1\n2a"] {
             assert!(multiply_input(input).is_err(), "accepted {input:?}");
         }
     }
@@ -927,7 +933,8 @@ mod tests {
             fs::write(directory.join(file_name), format!("{}\n2", index + 1)).unwrap();
         }
 
-        let batch = multiply_folder(directory.to_str().unwrap()).unwrap();
+        let quoted_path = format!("  \"{}\"  ", directory.to_str().unwrap());
+        let batch = multiply_folder(&quoted_path).unwrap();
         fs::remove_dir_all(&directory).unwrap();
 
         assert_eq!(batch.total_files, 10);

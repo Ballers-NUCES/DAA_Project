@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use serde::Serialize;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
@@ -193,7 +194,11 @@ pub fn generate_datasets(output_directory: &str, seed: &str) -> Result<Generatio
     let base_seed = seed.parse::<u64>().map_err(|_| {
         "The base seed must be a whole number from 0 to 18,446,744,073,709,551,615.".to_owned()
     })?;
-    let output_directory = output_directory.trim();
+    let output_directory = output_directory
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim();
     if output_directory.is_empty() {
         return Err("Enter an output directory before generating datasets.".to_owned());
     }
@@ -208,24 +213,44 @@ pub fn generate_datasets(output_directory: &str, seed: &str) -> Result<Generatio
         .and_then(|()| fs::create_dir_all(&karatsuba_path))
         .map_err(|error| format!("The output directories could not be created: {error}"))?;
 
-    let mut manifest_files = Vec::with_capacity(FILE_COUNT);
-    for (index, spec) in CLOSEST_PAIR_SPECS.iter().enumerate() {
-        let file_seed = seed_for_file(base_seed, index);
-        write_closest_pair_file(&closest_pair_path.join(spec.file), spec, file_seed)?;
-        manifest_files.push(ManifestFile {
-            file: format!("cpp/{}", spec.file),
-            seed: file_seed.to_string(),
-        });
-    }
+    let (cp_results, im_results) = rayon::join(
+        || {
+            CLOSEST_PAIR_SPECS
+                .par_iter()
+                .enumerate()
+                .map(|(index, spec)| {
+                    let file_seed = seed_for_file(base_seed, index);
+                    write_closest_pair_file(&closest_pair_path.join(spec.file), spec, file_seed)?;
+                    Ok(ManifestFile {
+                        file: format!("cpp/{}", spec.file),
+                        seed: file_seed.to_string(),
+                    })
+                })
+                .collect::<Result<Vec<ManifestFile>, String>>()
+        },
+        || {
+            MULTIPLICATION_SPECS
+                .par_iter()
+                .enumerate()
+                .map(|(index, spec)| {
+                    let file_seed = seed_for_file(base_seed, CLOSEST_PAIR_SPECS.len() + index);
+                    write_multiplication_file(
+                        &karatsuba_path.join(spec.file),
+                        spec.kind,
+                        file_seed,
+                    )?;
+                    Ok(ManifestFile {
+                        file: format!("karatsuba/{}", spec.file),
+                        seed: file_seed.to_string(),
+                    })
+                })
+                .collect::<Result<Vec<ManifestFile>, String>>()
+        },
+    );
 
-    for (index, spec) in MULTIPLICATION_SPECS.iter().enumerate() {
-        let file_seed = seed_for_file(base_seed, CLOSEST_PAIR_SPECS.len() + index);
-        write_multiplication_file(&karatsuba_path.join(spec.file), spec.kind, file_seed)?;
-        manifest_files.push(ManifestFile {
-            file: format!("karatsuba/{}", spec.file),
-            seed: file_seed.to_string(),
-        });
-    }
+    let mut manifest_files = Vec::with_capacity(FILE_COUNT);
+    manifest_files.extend(cp_results?);
+    manifest_files.extend(im_results?);
 
     let manifest_path = output_path.join("manifest.json");
     let manifest = SeedManifest {

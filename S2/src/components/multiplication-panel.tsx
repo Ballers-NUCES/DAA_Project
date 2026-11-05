@@ -16,12 +16,14 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import {
   InputGroup,
   InputGroupAddon,
+  InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { multiplicationDatasets } from "@/data/datasets"
 import type { useMultiplicationWorkflow } from "@/hooks/use-multiplication-workflow"
+import { pickFolder } from "@/lib/backend"
 
 interface MultiplicationPanelProps {
   workflow: ReturnType<typeof useMultiplicationWorkflow>
@@ -130,6 +132,20 @@ export function MultiplicationPanel({ workflow }: MultiplicationPanelProps) {
                   />
                   <InputGroupAddon align="inline-start">
                     <FolderOpenIcon className="size-4" aria-hidden="true" />
+                  </InputGroupAddon>
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      size="sm"
+                      variant="secondary"
+                      disabled={running}
+                      onClick={async () => {
+                        const selected = await pickFolder(directory)
+                        if (selected) updateDirectory(selected)
+                      }}
+                    >
+                      <FolderOpenIcon aria-hidden="true" />
+                      Browse
+                    </InputGroupButton>
                   </InputGroupAddon>
                 </InputGroup>
                 <FieldDescription id="karatsuba-directory-description" className="text-xs leading-relaxed">

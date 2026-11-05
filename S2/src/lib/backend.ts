@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
+import { open } from "@tauri-apps/plugin-dialog"
 import type {
   ClosestPairResult,
   GenerationResult,
@@ -37,4 +38,13 @@ export async function generateDatasets(options: {
   seed: string
 }): Promise<GenerationResult> {
   return invoke<GenerationResult>("generate_datasets", options)
+}
+
+export async function pickFolder(defaultPath?: string): Promise<string | null> {
+  const trimmed = defaultPath?.trim().replace(/^["']+|["']+$/g, "").trim()
+  return open({
+    directory: true,
+    multiple: false,
+    defaultPath: trimmed || undefined,
+  })
 }

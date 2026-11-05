@@ -31,7 +31,13 @@ export function useAlgorithmWorkflow<T>(runner: (file: File) => Promise<T>) {
       setStatus("success")
     } catch (reason) {
       if (currentRequest !== requestId.current) return
-      setError(reason instanceof Error ? reason.message : "The algorithm could not be run.")
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : typeof reason === "string"
+            ? reason
+            : "The algorithm could not be run.",
+      )
       setStatus("error")
     }
   }, [file, runner, status])

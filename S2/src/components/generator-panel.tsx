@@ -25,7 +25,12 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import {
   Item,
   ItemActions,
@@ -38,6 +43,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import type { useGeneratorWorkflow } from "@/hooks/use-generator-workflow"
+import { pickFolder } from "@/lib/backend"
 
 interface GeneratorPanelProps {
   workflow: ReturnType<typeof useGeneratorWorkflow>
@@ -102,6 +108,20 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
                   />
                   <InputGroupAddon align="inline-start">
                     <FolderOpenIcon className="size-4" aria-hidden="true" />
+                  </InputGroupAddon>
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      size="sm"
+                      variant="secondary"
+                      disabled={running}
+                      onClick={async () => {
+                        const selected = await pickFolder(outputDirectory)
+                        if (selected) updateOutputDirectory(selected)
+                      }}
+                    >
+                      <FolderOpenIcon aria-hidden="true" />
+                      Browse
+                    </InputGroupButton>
                   </InputGroupAddon>
                 </InputGroup>
                 <FieldDescription id="output-directory-description" className="text-xs">
