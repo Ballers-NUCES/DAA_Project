@@ -28,8 +28,27 @@ export interface MultiplicationResult {
   trace?: AlgorithmStep[]
 }
 
+export interface AlgorithmFileResult<T> {
+  fileName: string
+  result?: T
+  error?: string
+}
+
+export interface AlgorithmBatchResult<T> {
+  source: string
+  files: AlgorithmFileResult<T>[]
+  totalFiles: number
+  succeeded: number
+  failed: number
+  totalElapsedMicros: number
+}
+
+export type MultiplicationBatchResult = AlgorithmBatchResult<MultiplicationResult>
+
 export interface GenerationResult {
   filesGenerated: number
   manifestPath: string
   outputDirectory: string
+  karatsubaDirectory: string
+  closestPairDirectory: string
 }

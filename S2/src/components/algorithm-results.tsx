@@ -45,7 +45,13 @@ export function ClosestPairResultView({ result }: { result: ClosestPairResult })
   )
 }
 
-export function MultiplicationResultView({ result }: { result: MultiplicationResult }) {
+export function MultiplicationResultView({
+  result,
+  showMetrics = true,
+}: {
+  result: MultiplicationResult
+  showMetrics?: boolean
+}) {
   const isProductPreview = result.product.length > FULL_PRODUCT_THRESHOLD
   const omittedDigits = result.product.length - PRODUCT_PREVIEW_DIGITS * 2
   const displayedProduct = isProductPreview
@@ -67,11 +73,13 @@ export function MultiplicationResultView({ result }: { result: MultiplicationRes
 
   return (
     <div className="space-y-5">
-      <dl className="grid gap-3 sm:grid-cols-3">
-        <ResultMetric label="Left operand" value={`${numberFormatter.format(result.leftDigits)}\u00a0digits`} />
-        <ResultMetric label="Right operand" value={`${numberFormatter.format(result.rightDigits)}\u00a0digits`} />
-        <ResultMetric label="Running time" value={formatDuration(result.elapsedMicros)} />
-      </dl>
+      {showMetrics && (
+        <dl className="grid gap-3 sm:grid-cols-3">
+          <ResultMetric label="Left operand" value={`${numberFormatter.format(result.leftDigits)} digits`} />
+          <ResultMetric label="Right operand" value={`${numberFormatter.format(result.rightDigits)} digits`} />
+          <ResultMetric label="Running time" value={formatDuration(result.elapsedMicros)} />
+        </dl>
+      )}
       <div>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="text-sm font-medium">Product</h3>

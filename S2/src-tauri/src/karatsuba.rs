@@ -1,5 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt::Write as _;
+use std::fs;
+use std::path::Path;
 use std::time::Instant;
 
 const BASE: u64 = 1_000_000_000;
@@ -8,6 +10,10 @@ const KARATSUBA_CUTOFF: usize = 32;
 const TRACE_CUTOFF: usize = 1;
 const MAX_TRACE_DIGITS: usize = 101;
 const MAX_TRACE_STEPS: usize = 2_000;
+const MULTIPLICATION_FILES: [&str; 10] = [
+    "im01.txt", "im02.txt", "im03.txt", "im04.txt", "im05.txt", "im06.txt", "im07.txt", "im08.txt",
+    "im09.txt", "im10.txt",
+];
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,6 +33,33 @@ pub struct MultiplicationResult {
     pub elapsed_micros: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trace: Option<Vec<AlgorithmStep>>,
+}
+
+#[derive(Deserialize)]
+pub struct DecimalInput {
+    pub name: String,
+    pub content: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MultiplicationFileResult {
+    pub file_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<MultiplicationResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MultiplicationBatchResult {
+    pub source: String,
+    pub files: Vec<MultiplicationFileResult>,
+    pub total_files: usize,
+    pub succeeded: usize,
+    pub failed: usize,
+    pub total_elapsed_micros: u64,
 }
 
 struct TraceRecorder {
@@ -93,6 +126,83 @@ pub fn multiply_input(input: &str) -> Result<MultiplicationResult, String> {
         elapsed_micros,
         trace,
     })
+}
+
+pub fn multiply_folder(directory: &str) -> Result<MultiplicationBatchResult, String> {
+    let directory = directory.trim();
+    if directory.is_empty() {
+        return Err("Enter the Karatsuba dataset folder before running the batch.".to_owned());
+    }
+    let directory_path = Path::new(directory);
+    if !directory_path.is_absolute() {
+        return Err("The Karatsuba dataset folder must be an absolute path.".to_owned());
+    }
+    if !directory_path.is_dir() {
+        return Err(
+            "The Karatsuba dataset folder does not exist. Choose the folder containing im01.txt through im10.txt."
+                .to_owned(),
+        );
+    }
+
+    let inputs = MULTIPLICATION_FILES.iter().map(|file_name| {
+        let content = fs::read_to_string(directory_path.join(file_name)).map_err(|error| {
+            format!("The file could not be read: {error}. Generate the datasets or choose a different file.")
+        });
+        ((*file_name).to_owned(), content)
+    });
+    Ok(multiply_named_files(directory.to_owned(), inputs))
+}
+
+pub fn multiply_files(inputs: Vec<DecimalInput>) -> Result<MultiplicationBatchResult, String> {
+    if inputs.is_empty() {
+        return Err(
+            "Choose at least one multiplication input file before running Karatsuba.".to_owned(),
+        );
+    }
+
+    let inputs = inputs
+        .into_iter()
+        .map(|input| (input.name, Ok(input.content)));
+    Ok(multiply_named_files("Selected files".to_owned(), inputs))
+}
+
+fn multiply_named_files(
+    source: String,
+    inputs: impl IntoIterator<Item = (String, Result<String, String>)>,
+) -> MultiplicationBatchResult {
+    let mut files = Vec::new();
+    let mut succeeded = 0;
+    let mut total_elapsed_micros = 0_u128;
+
+    for (file_name, input) in inputs {
+        let outcome = input.and_then(|content| multiply_input(&content));
+        match outcome {
+            Ok(result) => {
+                total_elapsed_micros += u128::from(result.elapsed_micros);
+                succeeded += 1;
+                files.push(MultiplicationFileResult {
+                    file_name,
+                    result: Some(result),
+                    error: None,
+                });
+            }
+            Err(error) => files.push(MultiplicationFileResult {
+                file_name,
+                result: None,
+                error: Some(error),
+            }),
+        }
+    }
+
+    let total_files = files.len();
+    MultiplicationBatchResult {
+        source,
+        total_files,
+        succeeded,
+        failed: total_files - succeeded,
+        total_elapsed_micros: total_elapsed_micros.min(u128::from(u64::MAX)) as u64,
+        files,
+    }
 }
 
 fn parse_operands(input: &str) -> Result<(String, String), String> {
@@ -419,6 +529,72 @@ mod tests {
         for input in ["", "1", "1\n", "1\n2\n3", "-1\n2", "1\n2a"] {
             assert!(multiply_input(input).is_err(), "accepted {input:?}");
         }
+    }
+
+    #[test]
+    fn batches_preserve_file_order_and_continue_after_errors() {
+        let batch = multiply_files(vec![
+            DecimalInput {
+                name: "first.txt".to_owned(),
+                content: "12\n34".to_owned(),
+            },
+            DecimalInput {
+                name: "invalid.txt".to_owned(),
+                content: "not a number".to_owned(),
+            },
+            DecimalInput {
+                name: "last.txt".to_owned(),
+                content: "0\n999".to_owned(),
+            },
+        ])
+        .unwrap();
+
+        assert_eq!(batch.total_files, 3);
+        assert_eq!(batch.succeeded, 2);
+        assert_eq!(batch.failed, 1);
+        assert_eq!(batch.files[0].file_name, "first.txt");
+        assert_eq!(batch.files[0].result.as_ref().unwrap().product, "408");
+        assert!(batch.files[1].error.is_some());
+        assert_eq!(batch.files[2].file_name, "last.txt");
+        assert_eq!(batch.files[2].result.as_ref().unwrap().product, "0");
+        let expected_micros: u128 = batch
+            .files
+            .iter()
+            .filter_map(|file| file.result.as_ref())
+            .map(|result| u128::from(result.elapsed_micros))
+            .sum();
+        assert_eq!(u128::from(batch.total_elapsed_micros), expected_micros);
+    }
+
+    #[test]
+    fn reads_a_dataset_folder_in_assignment_order() {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join(format!("test-karatsuba-folder-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).unwrap();
+        for (index, file_name) in MULTIPLICATION_FILES.iter().enumerate() {
+            fs::write(directory.join(file_name), format!("{}\n2", index + 1)).unwrap();
+        }
+
+        let batch = multiply_folder(directory.to_str().unwrap()).unwrap();
+        fs::remove_dir_all(&directory).unwrap();
+
+        assert_eq!(batch.total_files, 10);
+        assert_eq!(batch.succeeded, 10);
+        assert_eq!(batch.failed, 0);
+        for (index, file) in batch.files.iter().enumerate() {
+            assert_eq!(file.file_name, MULTIPLICATION_FILES[index]);
+            assert_eq!(
+                file.result.as_ref().unwrap().product,
+                ((index + 1) * 2).to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_an_empty_batch() {
+        assert!(multiply_files(Vec::new()).is_err());
     }
 
     fn reference_product(left: &str, right: &str) -> String {

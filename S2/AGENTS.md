@@ -28,14 +28,15 @@ Do not invent requirements. When in doubt, re-read `Project2026.pdf`; it is shor
 
 ## 2. State of the project (read this before planning work)
 
-The **frontend is complete**. **Karatsuba is connected end to end**; closest-pair and dataset generation remain stubs. `src/lib/backend.ts` is the single seam between UI and Rust.
+The **frontend is complete**. **Karatsuba and dataset generation are connected end to end**; closest-pair remains a stub. `src/lib/backend.ts` is the single seam between UI and Rust.
 
-- `runKaratsuba` reads the selected file as text and invokes the async `run_karatsuba` Tauri command.
-- `src-tauri/src/karatsuba.rs` implements custom base-1e9 `Vec<u32>` arithmetic, validation, timing, traces, and unit tests.
-- `runClosestPair` and `generateDatasets` still **throw** intentionally.
-- `src-tauri/src/lib.rs` registers `run_karatsuba`; the template `greet` command has been removed.
+- `runKaratsuba` runs the generated `karatsuba` folder by default or sends selected files as a named batch. The async `run_karatsuba_folder` and `run_karatsuba_files` commands return per-file results and continue after individual failures.
+- `src-tauri/src/karatsuba.rs` implements custom base-1e9 `Vec<u32>` arithmetic, validation, timing, traces, batch orchestration, and unit tests.
+- `src-tauri/src/generator.rs` implements deterministic SplitMix64 generation for all 20 datasets, per-file seeds, a JSON manifest, and unit tests. Closest-pair files go in `cpp/`; multiplication files go in `karatsuba/`.
+- `generateDatasets` invokes the async `generate_datasets` Tauri command; `runClosestPair` still **throws** intentionally.
+- `src-tauri/src/lib.rs` registers the two Karatsuba batch commands and `generate_datasets`; the template `greet` command has been removed.
 
-The remaining backend work is the Rust generator + closest-pair, their IPC contracts, and replacing the two remaining throws in `backend.ts`.
+The remaining backend work is closest-pair, its IPC contract, and replacing the remaining throw in `backend.ts`.
 
 The app builds and runs (`bun run build` passes, `cargo check` passes). Don't re-derive that.
 
@@ -95,25 +96,27 @@ S2/
     App.tsx                  shell + 3 tabs (closest-pair | karatsuba | generator)
     App.css                  <- the Tailwind entry point, despite the name
     types/workflow.ts        <- the UI<->Rust contract. Types only.
-    lib/backend.ts           <- the IPC seam. Closest-pair + generator still throw.
+    lib/backend.ts           <- the IPC seam. Closest-pair still throws.
     lib/validation.ts        validateSeed (u64 bound, BigInt-checked)
     lib/utils.ts             re-exports cn from the "cn" package
     data/datasets.ts         cp01-cp10 / im01-im10 descriptors shown in the UI
-    hooks/use-algorithm-workflow.ts   file + status + result + error machine
+    hooks/use-algorithm-workflow.ts   closest-pair file + status + result + error machine
+    hooks/use-multiplication-workflow.ts   generated-folder/files source + batch run machine
     hooks/use-generator-workflow.ts   seed + output dir + validation + run
     components/              feature components (kebab-case files)
     components/ui/           vendored shadcn/Base UI primitives
   src-tauri/
     src/lib.rs               async commands + invoke_handler — the only registration point
-    src/karatsuba.rs         Vec<u32> Karatsuba, parser, traces, and unit tests
+    src/karatsuba.rs         Vec<u32> Karatsuba, parser, traces, batches, and unit tests
+    src/generator.rs         SplitMix64 datasets, seed manifest, and unit tests
     src/main.rs              calls dsa_project_lib::run()
     tauri.conf.json          window 1100x760, bun hooks, csp null
     capabilities/default.json  window "main": core:default, opener:default
 ```
 
-Frontend flow: `App.tsx` -> `useAlgorithmWorkflow(runner)` (one instance per algorithm) -> `AlgorithmPanel` -> `ResultPanel`/`TraceViewer`. The generator has its own hook. Feature components are presentational and take props; all state lives in the two hooks.
+Frontend flow: closest-pair uses `useAlgorithmWorkflow` -> `AlgorithmPanel`; Karatsuba uses `useMultiplicationWorkflow` -> `MultiplicationPanel` -> `MultiplicationBatchResultView`; the generator has its own hook. Feature components are presentational and take props; all state lives in the three hooks.
 
-`WorkflowStatus` is `"idle" | "running" | "success" | "error"`, and the whole UI branches on it. Both hooks guard against stale responses with a `requestId` ref — **keep that pattern** when the runners become real, because a 1M-element run can outlive the user's next file selection.
+`WorkflowStatus` is `"idle" | "running" | "success" | "error"`, and the whole UI branches on it. All three hooks guard against stale responses with a `requestId` ref — **keep that pattern**, because a 1M-element run can outlive the user's next file selection.
 
 ---
 
@@ -131,7 +134,8 @@ Shape requirements, taken from the TS types:
 
 - `ClosestPairResult`: `first`, `second` (`{x, y}` numbers), `distance: f64`, `inputSize: u64`, `elapsedMicros: u64`, `trace?: AlgorithmStep[]`.
 - `MultiplicationResult`: `product: String`, `leftDigits`, `rightDigits`, `elapsedMicros`, `trace?`.
-- `GenerationResult`: `filesGenerated`, `manifestPath`, `outputDirectory`.
+- `GenerationResult`: `filesGenerated`, `manifestPath`, `outputDirectory`, `karatsubaDirectory`, `closestPairDirectory`.
+- `MultiplicationBatchResult`: `source`, `files`, `totalFiles`, `succeeded`, `failed`, `totalElapsedMicros`. Each file entry has `fileName` plus optional `result` or `error`; total time sums algorithm-only timings.
 - `AlgorithmStep`: `{ title: string, description: string, depth?: number }`. `description` is rendered in a `<p>` with `whitespace-pre-wrap`, so newlines are fine, markdown is not.
 
 Errors: return `Result<T, String>` and make the string **user-facing English prose** — it is shown verbatim inside an `Alert`. Match the tone of the existing stub messages ("…is ready and your selection has been preserved.").
@@ -188,6 +192,8 @@ Dataset spec (mirrors `src/data/datasets.ts` — if you change one, change both)
 | im08 | 1,000,000 | both powers of 10 |
 | im09 | 1 / 1,000,000 | one operand is 0 |
 | im10 | 101 | small, for the step-by-step view |
+
+The generator writes `cpp/cp01.txt`–`cpp/cp10.txt` and `karatsuba/im01.txt`–`karatsuba/im10.txt`, with relative paths and per-file seeds in `manifest.json`. Karatsuba defaults to the generated `karatsuba` folder and runs `im01.txt` through `im10.txt` in order; user-selected files use the same batch result UI.
 
 **Traces only for cp10 and im10** (101 elements). The UI says so itself ("Small inputs include a trace"), and `TraceViewer` paginates 50 steps per page. Emitting a trace for a million-element run will stall the bridge for no marks. Keep traces a few thousand steps at most.
 

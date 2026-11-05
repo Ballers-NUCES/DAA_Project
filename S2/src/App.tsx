@@ -1,18 +1,20 @@
 import { CalculatorIcon, CrosshairIcon, DatabaseIcon } from "lucide-react"
 import { AlgorithmPanel } from "@/components/algorithm-panel"
-import { ClosestPairResultView, MultiplicationResultView } from "@/components/algorithm-results"
+import { ClosestPairResultView } from "@/components/algorithm-results"
 import { AppHeader } from "@/components/app-header"
 import { GeneratorPanel } from "@/components/generator-panel"
+import { MultiplicationPanel } from "@/components/multiplication-panel"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { closestPairDatasets, multiplicationDatasets } from "@/data/datasets"
+import { closestPairDatasets } from "@/data/datasets"
 import { useAlgorithmWorkflow } from "@/hooks/use-algorithm-workflow"
 import { useGeneratorWorkflow } from "@/hooks/use-generator-workflow"
-import { runClosestPair, runKaratsuba } from "@/lib/backend"
+import { useMultiplicationWorkflow } from "@/hooks/use-multiplication-workflow"
+import { runClosestPair } from "@/lib/backend"
 
 function App() {
   const closestPair = useAlgorithmWorkflow(runClosestPair)
-  const karatsuba = useAlgorithmWorkflow(runKaratsuba)
   const generator = useGeneratorWorkflow()
+  const karatsuba = useMultiplicationWorkflow(generator.result?.karatsubaDirectory)
 
   return (
     <div className="flex h-svh flex-col bg-background text-foreground">
@@ -81,25 +83,7 @@ function App() {
             </TabsContent>
 
             <TabsContent value="karatsuba" className="mt-4">
-              <AlgorithmPanel
-                id="karatsuba"
-                title="Integer multiplication"
-                description="Multiply non-negative integers using Karatsuba recursion."
-                complexity="O(n¹·⁵⁸⁵)"
-                actionLabel="Run Karatsuba"
-                idleDescription="Select a dataset and run the algorithm to see the product, running time, and trace when available."
-                datasets={multiplicationDatasets}
-                datasetTitle="Multiplication datasets"
-                datasetDescription="Operand sizes and edge cases for im01–im10."
-                fileHint="Choose im01–im10. Files are assumed valid."
-                file={karatsuba.file}
-                status={karatsuba.status}
-                error={karatsuba.error}
-                onFileChange={karatsuba.selectFile}
-                onRun={() => void karatsuba.run()}
-              >
-                {karatsuba.result && <MultiplicationResultView result={karatsuba.result} />}
-              </AlgorithmPanel>
+              <MultiplicationPanel workflow={karatsuba} />
             </TabsContent>
 
             <TabsContent value="generator" className="mt-4">

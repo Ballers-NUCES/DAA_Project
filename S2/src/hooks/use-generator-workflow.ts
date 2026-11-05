@@ -63,7 +63,13 @@ export function useGeneratorWorkflow() {
       setStatus("success")
     } catch (reason) {
       if (currentRequest !== requestId.current) return null
-      setError(reason instanceof Error ? reason.message : "Datasets could not be generated.")
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : typeof reason === "string"
+            ? reason
+            : "Datasets could not be generated.",
+      )
       setStatus("error")
     }
     return null

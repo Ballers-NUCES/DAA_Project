@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { CircleAlertIcon, PlayIcon } from "lucide-react"
+import { CircleAlertIcon, Clock3Icon, PlayIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Empty,
@@ -8,17 +8,25 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Spinner } from "@/components/ui/spinner"
 import type { WorkflowStatus } from "@/types/workflow"
 
 interface ResultPanelProps {
   status: WorkflowStatus
   error: string | null
   idleDescription: string
+  runningTitle?: string
+  runningDescription?: string
   children: ReactNode
 }
 
-export function ResultPanel({ status, error, idleDescription, children }: ResultPanelProps) {
+export function ResultPanel({
+  status,
+  error,
+  idleDescription,
+  runningTitle = "Run in progress",
+  runningDescription = "Processing the selected input. Large datasets may take longer.",
+  children,
+}: ResultPanelProps) {
   return (
     <section aria-label="Algorithm results" aria-busy={status === "running"}>
       {status === "idle" && (
@@ -34,15 +42,13 @@ export function ResultPanel({ status, error, idleDescription, children }: Result
       )}
 
       {status === "running" && (
-        <Empty className="border bg-muted/20 py-8" role="status">
+        <Empty className="border-primary/20 bg-muted/20 py-8" role="status">
           <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Spinner />
+            <EmptyMedia variant="icon" className="bg-secondary text-secondary-foreground">
+              <Clock3Icon className="size-4" aria-hidden="true" />
             </EmptyMedia>
-            <EmptyTitle>Running algorithm</EmptyTitle>
-            <EmptyDescription>
-              Processing the selected input file. Large datasets may take longer.
-            </EmptyDescription>
+            <EmptyTitle>{runningTitle}</EmptyTitle>
+            <EmptyDescription>{runningDescription}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       )}

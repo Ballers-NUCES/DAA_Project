@@ -166,6 +166,12 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
                   <span className="mt-1 block">
                     Manifest: <code className="break-all font-mono text-xs">{result.manifestPath}</code>
                   </span>
+                  <span className="mt-1 block">
+                    Karatsuba: <code className="break-all font-mono text-xs">{result.karatsubaDirectory}</code>
+                  </span>
+                  <span className="mt-1 block">
+                    Closest pair (cpp): <code className="break-all font-mono text-xs">{result.closestPairDirectory}</code>
+                  </span>
                 </AlertDescription>
               </Alert>
             )}
@@ -179,9 +185,16 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
               </div>
             )}
             {running && (
-              <div className="flex items-center gap-3 rounded-xl border bg-muted/20 p-4 text-sm" role="status">
-                <Spinner />
-                Generating datasets and recording their seeds…
+              <div className="flex items-center gap-3 rounded-xl border-primary/20 bg-muted/20 p-4 text-sm" role="status">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                  <DatabaseIcon className="size-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="font-medium">Generating the dataset collection</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Writing 20 files and recording their seeds. Large files may take a moment.
+                  </p>
+                </div>
               </div>
             )}
           </div>

@@ -2,29 +2,39 @@ import { invoke } from "@tauri-apps/api/core"
 import type {
   ClosestPairResult,
   GenerationResult,
-  MultiplicationResult,
+  MultiplicationBatchResult,
 } from "@/types/workflow"
 
-/**
- * Frontend boundary for the future Tauri commands. Keeping the placeholders
- * here lets the UI implement its complete state machine without fake results.
- */
+/** Frontend boundary for the Tauri commands. */
 export async function runClosestPair(file: File): Promise<ClosestPairResult> {
   throw new Error(
     `The Rust command is not connected yet. “${file.name}” is ready and your selection has been preserved.`,
   )
 }
 
-export async function runKaratsuba(file: File): Promise<MultiplicationResult> {
-  const decimalContent = await file.text()
-  return invoke<MultiplicationResult>("run_karatsuba", { decimalContent })
+export async function runKaratsuba(source: {
+  mode: "folder" | "files"
+  directory: string
+  files: File[]
+}): Promise<MultiplicationBatchResult> {
+  if (source.mode === "folder") {
+    return invoke<MultiplicationBatchResult>("run_karatsuba_folder", {
+      directory: source.directory,
+    })
+  }
+
+  const inputs = await Promise.all(
+    source.files.map(async (file) => ({
+      name: file.name,
+      content: await file.text(),
+    })),
+  )
+  return invoke<MultiplicationBatchResult>("run_karatsuba_files", { inputs })
 }
 
 export async function generateDatasets(options: {
   outputDirectory: string
   seed: string
 }): Promise<GenerationResult> {
-  throw new Error(
-    `Dataset generation is not connected yet. Your seed (${options.seed}) and output directory have been preserved.`,
-  )
+  return invoke<GenerationResult>("generate_datasets", options)
 }
