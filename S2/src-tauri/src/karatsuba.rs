@@ -1,14 +1,16 @@
+use rayon::join;
 use serde::{Deserialize, Serialize};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
-use std::thread;
 use std::time::Instant;
 
 const BASE: u64 = 1_000_000_000;
+const BASE32: u32 = 1_000_000_000;
 const BASE_DIGITS: usize = 9;
 const KARATSUBA_CUTOFF: usize = 64;
-const PARALLEL_THRESHOLD: usize = 16_384;
+const PARALLEL_THRESHOLD: usize = 4_096; // limbs
+const ROWS_PER_PASS: usize = 16;
 const TRACE_CUTOFF: usize = 1;
 const MAX_TRACE_DIGITS: usize = 101;
 const MAX_TRACE_STEPS: usize = 2_000;
@@ -266,6 +268,10 @@ fn limbs_to_decimal(limbs: &[u32]) -> String {
     output
 }
 
+// ---------------------------------------------------------------------------
+// Traced (teaching) Karatsuba: used for the step-by-step view on small inputs.
+// ---------------------------------------------------------------------------
+
 fn karatsuba(
     a: &[u32],
     b: &[u32],
@@ -347,49 +353,6 @@ fn karatsuba(
     result
 }
 
-fn karatsuba_parallel(a: &[u32], b: &[u32]) -> Vec<u32> {
-    karatsuba_parallel_with_threshold(a, b, PARALLEL_THRESHOLD)
-}
-
-fn karatsuba_parallel_with_threshold(a: &[u32], b: &[u32], threshold: usize) -> Vec<u32> {
-    let a = canonical_slice(a);
-    let b = canonical_slice(b);
-
-    if a.is_empty() || b.is_empty() {
-        return Vec::new();
-    }
-    if a.len().max(b.len()) < threshold || a.len().min(b.len()) <= KARATSUBA_CUTOFF {
-        return karatsuba(
-            a,
-            b,
-            KARATSUBA_CUTOFF,
-            0,
-            &mut TraceRecorder::disabled(),
-        );
-    }
-
-    let split = a.len().max(b.len()) / 2;
-    let (a0, a1) = split_limbs(a, split);
-    let (b0, b1) = split_limbs(b, split);
-    let a_sum = add(a0, a1);
-    let b_sum = add(b0, b1);
-
-    thread::scope(|scope| {
-        let z0_worker = scope.spawn(move || karatsuba_parallel_with_threshold(a0, b0, threshold));
-        let z2_worker = scope.spawn(move || karatsuba_parallel_with_threshold(a1, b1, threshold));
-        let z_sum = karatsuba_parallel_with_threshold(&a_sum, &b_sum, threshold);
-
-        let z0 = z0_worker
-            .join()
-            .expect("the Karatsuba z0 worker thread panicked");
-        let z2 = z2_worker
-            .join()
-            .expect("the Karatsuba z2 worker thread panicked");
-        let z1 = middle_term(z_sum, &z0, &z2);
-        assemble(&z0, &z1, &z2, split)
-    })
-}
-
 fn middle_term(mut z_sum: Vec<u32>, z0: &[u32], z2: &[u32]) -> Vec<u32> {
     subtract_in_place(&mut z_sum, z0);
     subtract_in_place(&mut z_sum, z2);
@@ -414,39 +377,6 @@ fn split_limbs(values: &[u32], split: usize) -> (&[u32], &[u32]) {
         &[]
     };
     (canonical_slice(&values[..low_end]), canonical_slice(high))
-}
-
-fn schoolbook(a: &[u32], b: &[u32]) -> Vec<u32> {
-    if a.is_empty() || b.is_empty() {
-        return Vec::new();
-    }
-
-    // Iterate the shorter operand so normalization passes cost less.
-    let (a, b) = if a.len() <= b.len() { (a, b) } else { (b, a) };
-    const ROWS_PER_PASS: usize = 16;
-
-    let mut accumulated = vec![0_u64; a.len() + b.len()];
-    for (chunk_index, rows) in a.chunks(ROWS_PER_PASS).enumerate() {
-        for (row, &left) in rows.iter().enumerate() {
-            let start = chunk_index * ROWS_PER_PASS + row;
-            let left = u64::from(left);
-            for (slot, &right) in accumulated[start..start + b.len()].iter_mut().zip(b) {
-                *slot += left * u64::from(right);
-            }
-        }
-
-        let mut carry = 0_u64;
-        for slot in &mut accumulated {
-            let total = *slot + carry;
-            *slot = total % BASE;
-            carry = total / BASE;
-        }
-        debug_assert_eq!(carry, 0, "schoolbook normalization overflowed its buffer");
-    }
-
-    let mut product: Vec<u32> = accumulated.into_iter().map(|value| value as u32).collect();
-    trim_limbs(&mut product);
-    product
 }
 
 fn add(a: &[u32], b: &[u32]) -> Vec<u32> {
@@ -519,9 +449,342 @@ fn trim_limbs(values: &mut Vec<u32>) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Fast path
+//
+// * Balanced operands are zero-padded to base * 2^k (base <= cutoff, < 3% waste),
+//   so every recursion level splits exactly in half.
+// * The (a0 + a1)(b0 + b1) carry bits are handled separately, so the middle
+//   product also has exactly n/2 limbs.
+// * One scratch buffer per sequential subtree: no allocation inside recursion.
+// * Unbalanced operands are cut into chunks the size of the shorter operand.
+// * The leaf schoolbook defers carries: no serial carry chain per pass.
+// ---------------------------------------------------------------------------
+
+fn karatsuba_parallel(a: &[u32], b: &[u32]) -> Vec<u32> {
+    karatsuba_rayon_with_threshold(a, b, PARALLEL_THRESHOLD)
+}
+
+fn karatsuba_rayon_with_threshold(a: &[u32], b: &[u32], threshold: usize) -> Vec<u32> {
+    let a = canonical_slice(a);
+    let b = canonical_slice(b);
+    if a.is_empty() || b.is_empty() {
+        return Vec::new();
+    }
+    let (long, short) = if a.len() >= b.len() { (a, b) } else { (b, a) };
+    let mut product = vec![0_u32; long.len() + short.len()];
+    multiply_into(&mut product, long, short, threshold);
+    trim_limbs(&mut product);
+    product
+}
+
+/// Writes long * short into `out` (out.len() == long.len() + short.len()).
+fn multiply_into(out: &mut [u32], long: &[u32], short: &[u32], threshold: usize) {
+    debug_assert!(long.len() >= short.len());
+    debug_assert_eq!(out.len(), long.len() + short.len());
+    if short.len() <= KARATSUBA_CUTOFF {
+        schoolbook_into(out, long, short); // linear for very unbalanced inputs
+    } else if long.len() >= 2 * short.len() {
+        multiply_unbalanced(out, long, short, threshold);
+    } else {
+        multiply_balanced(out, long, short, threshold);
+    }
+}
+
+fn multiply_unbalanced(out: &mut [u32], long: &[u32], short: &[u32], threshold: usize) {
+    let chunk_len = short.len();
+    out.fill(0);
+    let mut buffer = vec![0_u32; 2 * chunk_len];
+    for (index, chunk) in long.chunks(chunk_len).enumerate() {
+        let chunk = canonical_slice(chunk);
+        if chunk.is_empty() {
+            continue;
+        }
+        let product = &mut buffer[..chunk.len() + chunk_len];
+        multiply_into(product, short, chunk, threshold);
+        let carry = add_assign(&mut out[index * chunk_len..], product);
+        debug_assert_eq!(carry, 0);
+    }
+}
+
+fn multiply_balanced(out: &mut [u32], long: &[u32], short: &[u32], threshold: usize) {
+    let n = padded_len(long.len());
+    let mut a = vec![0_u32; n];
+    let mut b = vec![0_u32; n];
+    a[..long.len()].copy_from_slice(long);
+    b[..short.len()].copy_from_slice(short);
+    let mut product = vec![0_u32; 2 * n];
+    karatsuba_par(&mut product, &a, &b, threshold);
+    out.copy_from_slice(&product[..out.len()]);
+}
+
+/// Smallest base * 2^k >= len with base <= KARATSUBA_CUTOFF.
+fn padded_len(len: usize) -> usize {
+    let mut base = len;
+    let mut factor = 1;
+    while base > KARATSUBA_CUTOFF {
+        base = base.div_ceil(2);
+        factor *= 2;
+    }
+    base * factor
+}
+
+fn scratch_len(n: usize) -> usize {
+    4 * n + 64
+}
+
+/// Parallel top levels; hands sequential subtrees their own scratch buffer.
+fn karatsuba_par(out: &mut [u32], a: &[u32], b: &[u32], threshold: usize) {
+    let n = a.len();
+    if n < threshold || n <= KARATSUBA_CUTOFF || n % 2 != 0 {
+        let mut scratch = vec![0_u32; scratch_len(n)];
+        karatsuba_seq(out, a, b, &mut scratch);
+        return;
+    }
+
+    let h = n / 2;
+    let (a0, a1) = a.split_at(h);
+    let (b0, b1) = b.split_at(h);
+    let mut sa = vec![0_u32; h];
+    let mut sb = vec![0_u32; h];
+    let mut t = vec![0_u32; n + 1];
+    let ca = add_to(&mut sa, a0, a1);
+    let cb = add_to(&mut sb, b0, b1);
+
+    {
+        let (z0, z2) = out.split_at_mut(n);
+        let (t_low, _) = t.split_at_mut(n);
+        let (sa, sb) = (&sa[..], &sb[..]);
+        join(
+            || {
+                join(
+                    || karatsuba_par(z0, a0, b0, threshold),
+                    || karatsuba_par(z2, a1, b1, threshold),
+                )
+            },
+            || karatsuba_par(t_low, sa, sb, threshold),
+        );
+    }
+    combine_middle(out, &mut t, &sa, &sb, ca, cb);
+}
+
+/// out.len() == 2n, a.len() == b.len() == n, scratch.len() >= scratch_len(n).
+fn karatsuba_seq(out: &mut [u32], a: &[u32], b: &[u32], scratch: &mut [u32]) {
+    let n = a.len();
+    debug_assert!(b.len() == n && out.len() == 2 * n);
+    if n <= KARATSUBA_CUTOFF || n % 2 != 0 {
+        schoolbook_into(out, a, b);
+        return;
+    }
+
+    let h = n / 2;
+    let (a0, a1) = a.split_at(h);
+    let (b0, b1) = b.split_at(h);
+    {
+        let (z0, z2) = out.split_at_mut(n);
+        karatsuba_seq(z0, a0, b0, scratch);
+        karatsuba_seq(z2, a1, b1, scratch);
+    }
+
+    let (sa, tail) = scratch.split_at_mut(h);
+    let (sb, tail) = tail.split_at_mut(h);
+    let (t, rest) = tail.split_at_mut(n + 1);
+    let ca = add_to(sa, a0, a1);
+    let cb = add_to(sb, b0, b1);
+    karatsuba_seq(&mut t[..n], sa, sb, rest);
+    combine_middle(out, t, sa, sb, ca, cb);
+}
+
+/// out = [z0 | z2] on entry. t[..n] = (a0+a1 mod B^h) * (b0+b1 mod B^h).
+/// Adds z1 = (a0+a1)(b0+b1) - z0 - z2 into out at offset h.
+fn combine_middle(out: &mut [u32], t: &mut [u32], sa: &[u32], sb: &[u32], ca: u32, cb: u32) {
+    let n = t.len() - 1;
+    let h = n / 2;
+    t[n] = 0;
+    // (sa + ca*B^h)(sb + cb*B^h) = sa*sb + B^h (ca*sb + cb*sa) + ca*cb*B^2h
+    if ca != 0 {
+        let carry = add_assign(&mut t[h..], sb);
+        debug_assert_eq!(carry, 0);
+    }
+    if cb != 0 {
+        let carry = add_assign(&mut t[h..], sa);
+        debug_assert_eq!(carry, 0);
+    }
+    t[n] += ca & cb;
+
+    let borrow = sub_assign(t, &out[..n]);
+    debug_assert_eq!(borrow, 0);
+    let borrow = sub_assign(t, &out[n..]);
+    debug_assert_eq!(borrow, 0);
+
+    let carry = add_assign(&mut out[h..], t);
+    debug_assert_eq!(carry, 0);
+}
+
+// --- Leaf multiplication ----------------------------------------------------
+
+fn schoolbook(a: &[u32], b: &[u32]) -> Vec<u32> {
+    if a.is_empty() || b.is_empty() {
+        return Vec::new();
+    }
+    let mut product = vec![0_u32; a.len() + b.len()];
+    schoolbook_into(&mut product, a, b);
+    trim_limbs(&mut product);
+    product
+}
+
+fn schoolbook_into(out: &mut [u32], a: &[u32], b: &[u32]) {
+    debug_assert_eq!(out.len(), a.len() + b.len());
+    let mut stack = [0_u64; 2 * KARATSUBA_CUTOFF];
+    let mut heap: Vec<u64>;
+    let acc: &mut [u64] = if out.len() <= stack.len() {
+        &mut stack[..out.len()]
+    } else {
+        heap = vec![0; out.len()];
+        &mut heap
+    };
+    multiply_accumulate(acc, a, b);
+    resolve_carries(out, acc);
+}
+
+/// Row-wise product into u64 slots without full normalization. Every
+/// ROWS_PER_PASS rows the carries are pushed up one slot (independent per slot,
+/// no serial chain). Slots stay below ~4e10 after a pass, and
+/// 16 * (1e9-1)^2 + 4e10 < 2^64, so nothing overflows.
+fn multiply_accumulate(acc: &mut [u64], a: &[u32], b: &[u32]) {
+    let (a, b) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    let mut first = 0;
+    for rows in a.chunks(ROWS_PER_PASS) {
+        for (row, &left) in rows.iter().enumerate() {
+            let left = u64::from(left);
+            let start = first + row;
+            for (slot, &right) in acc[start..start + b.len()].iter_mut().zip(b) {
+                *slot += left * u64::from(right);
+            }
+        }
+        let next = first + rows.len();
+        if next < a.len() {
+            // Touched slots end at next + b.len() - 2; the last window slot
+            // absorbs the final carry.
+            defer_carries(&mut acc[first..next + b.len()]);
+        }
+        first = next;
+    }
+}
+
+fn defer_carries(window: &mut [u64]) {
+    let (spill, body) = window
+        .split_last_mut()
+        .expect("carry window is never empty");
+    let mut carry = 0_u64;
+    for slot in body.iter_mut() {
+        let value = *slot;
+        let quotient = value / BASE;
+        *slot = value - quotient * BASE + carry;
+        carry = quotient;
+    }
+    *spill += carry;
+}
+
+fn resolve_carries(out: &mut [u32], acc: &[u64]) {
+    let mut carry = 0_u64;
+    for (limb, &value) in out.iter_mut().zip(acc) {
+        let total = value + carry;
+        let quotient = total / BASE;
+        *limb = (total - quotient * BASE) as u32;
+        carry = quotient;
+    }
+    debug_assert_eq!(carry, 0, "schoolbook product overflowed its buffer");
+}
+
+// --- Limb arithmetic (branch-free carries) ------------------------------------
+
+/// dst = x + y (equal lengths), returns the carry out.
+fn add_to(dst: &mut [u32], x: &[u32], y: &[u32]) -> u32 {
+    let mut carry = 0_u32;
+    for ((slot, &p), &q) in dst.iter_mut().zip(x).zip(y) {
+        let sum = p + q + carry;
+        carry = u32::from(sum >= BASE32);
+        *slot = sum - carry * BASE32;
+    }
+    carry
+}
+
+/// target += values (values.len() <= target.len()), returns the carry out.
+fn add_assign(target: &mut [u32], values: &[u32]) -> u32 {
+    debug_assert!(values.len() <= target.len());
+    let (head, tail) = target.split_at_mut(values.len());
+    let mut carry = 0_u32;
+    for (slot, &value) in head.iter_mut().zip(values) {
+        let sum = *slot + value + carry;
+        carry = u32::from(sum >= BASE32);
+        *slot = sum - carry * BASE32;
+    }
+    for slot in tail.iter_mut() {
+        if carry == 0 {
+            break;
+        }
+        let sum = *slot + carry;
+        carry = u32::from(sum >= BASE32);
+        *slot = sum - carry * BASE32;
+    }
+    carry
+}
+
+/// target -= values (values.len() <= target.len()), returns the borrow out.
+fn sub_assign(target: &mut [u32], values: &[u32]) -> u32 {
+    debug_assert!(values.len() <= target.len());
+    let (head, tail) = target.split_at_mut(values.len());
+    let mut borrow = 0_u32;
+    for (slot, &value) in head.iter_mut().zip(values) {
+        let (diff, under) = slot.overflowing_sub(value + borrow);
+        borrow = u32::from(under);
+        *slot = diff.wrapping_add(borrow * BASE32);
+    }
+    for slot in tail.iter_mut() {
+        if borrow == 0 {
+            break;
+        }
+        let (diff, under) = slot.overflowing_sub(borrow);
+        borrow = u32::from(under);
+        *slot = diff.wrapping_add(borrow * BASE32);
+    }
+    borrow
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Independent reference: plain decimal schoolbook on digit vectors.
+    fn reference_product(left: &str, right: &str) -> String {
+        let a: Vec<u64> = left.bytes().rev().map(|d| u64::from(d - b'0')).collect();
+        let b: Vec<u64> = right.bytes().rev().map(|d| u64::from(d - b'0')).collect();
+        let mut acc = vec![0_u64; a.len() + b.len()];
+        for (i, &x) in a.iter().enumerate() {
+            for (j, &y) in b.iter().enumerate() {
+                acc[i + j] += x * y;
+            }
+        }
+        let mut carry = 0_u64;
+        for slot in acc.iter_mut() {
+            let total = *slot + carry;
+            *slot = total % 10;
+            carry = total / 10;
+        }
+        let mut digits: String = acc
+            .iter()
+            .rev()
+            .map(|&d| char::from(b'0' + d as u8))
+            .collect();
+        let trimmed = digits.trim_start_matches('0').to_owned();
+        digits = if trimmed.is_empty() {
+            "0".to_owned()
+        } else {
+            trimmed
+        };
+        digits
+    }
 
     fn assert_u128_product(left: &str, right: &str) {
         let expected = (left.parse::<u128>().unwrap() * right.parse::<u128>().unwrap()).to_string();
@@ -586,8 +849,29 @@ mod tests {
             0,
             &mut TraceRecorder::disabled(),
         );
-        let parallel = karatsuba_parallel_with_threshold(&left_limbs, &right_limbs, 1_024);
+        let parallel = karatsuba_rayon_with_threshold(&left_limbs, &right_limbs, 1_024);
         assert_eq!(parallel, sequential);
+    }
+
+    #[test]
+    fn fast_path_matches_reference_on_stress_shapes() {
+        let nines = |n: usize| "9".repeat(n);
+        let pow10 = |n: usize| format!("1{}", "0".repeat(n - 1));
+        let sparse = |n: usize| format!("7{}7", "0".repeat(n - 2));
+        let cases = [
+            (nines(4_000), nines(3_500)),
+            (nines(6_000), nines(900)),
+            (pow10(5_000), pow10(4_999)),
+            (sparse(4_321), nines(4_321)),
+            (
+                "12345678901234567890".repeat(250),
+                "98765432109876543210".repeat(80),
+            ),
+        ];
+        for (left, right) in cases {
+            let result = multiply_input(&format!("{left}\n{right}")).unwrap();
+            assert_eq!(result.product, reference_product(&left, &right));
+        }
     }
 
     #[test]
@@ -659,47 +943,8 @@ mod tests {
     }
 
     #[test]
-    fn rejects_an_empty_batch() {
-        assert!(multiply_files(Vec::new()).is_err());
-    }
-
-    fn reference_product(left: &str, right: &str) -> String {
-        let left: Vec<u32> = left
-            .bytes()
-            .rev()
-            .map(|byte| u32::from(byte - b'0'))
-            .collect();
-        let right: Vec<u32> = right
-            .bytes()
-            .rev()
-            .map(|byte| u32::from(byte - b'0'))
-            .collect();
-        let mut digits = vec![0_u32; left.len() + right.len()];
-
-        for i in 0..left.len() {
-            for j in 0..right.len() {
-                digits[i + j] += left[i] * right[j];
-            }
-        }
-
-        let mut carry = 0_u32;
-        for digit in &mut digits {
-            let total = *digit + carry;
-            *digit = total % 10;
-            carry = total / 10;
-        }
-        while carry > 0 {
-            digits.push(carry % 10);
-            carry /= 10;
-        }
-        while digits.len() > 1 && digits.last() == Some(&0) {
-            digits.pop();
-        }
-
-        digits
-            .iter()
-            .rev()
-            .map(|digit| char::from(b'0' + *digit as u8))
-            .collect()
+    fn folder_errors_are_reported() {
+        assert!(multiply_folder("").is_err());
+        assert!(multiply_folder("relative/path").is_err());
     }
 }
