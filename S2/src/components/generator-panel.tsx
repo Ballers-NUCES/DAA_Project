@@ -2,17 +2,18 @@ import { useRef } from "react"
 import {
   CalculatorIcon,
   CheckCircle2Icon,
-  CircleAlertIcon,
   CrosshairIcon,
   DatabaseIcon,
   FolderOpenIcon,
-  InfoIcon,
+  ShuffleIcon,
 } from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ResultMetric } from "@/components/result-metric"
+import { ResultPanel } from "@/components/result-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -66,18 +67,37 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
   const seedInputRef = useRef<HTMLInputElement>(null)
   const running = status === "running"
 
+  const randomizeSeed = () => {
+    const buffer = new Uint32Array(2)
+    crypto.getRandomValues(buffer)
+    const nextSeed = (BigInt(buffer[0]) << 32n) | BigInt(buffer[1])
+    updateBaseSeed(nextSeed.toString())
+  }
+
   return (
     <div className="space-y-5">
-      <Card className="shadow-xs">
-        <CardHeader>
+      <Card className="gap-0 py-0 shadow-xs">
+        <CardHeader className="border-b bg-muted/20 py-5">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="font-medium">
+              SplitMix64 PRNG
+            </Badge>
+            <span className="text-xs text-muted-foreground">Deterministic Seed Manifest</span>
+          </div>
           <CardTitle>
-            <h2 className="text-lg tracking-tight">Dataset generator</h2>
+            <h2 className="text-lg tracking-tight text-balance">Dataset Generator</h2>
           </CardTitle>
-          <CardDescription className="mt-1.5 leading-relaxed">
-            Generate all 20 assignment datasets and their seed manifest.
+          <CardDescription className="max-w-2xl leading-relaxed text-pretty">
+            Generate all 20 benchmark datasets and record their exact per-file seeds in a JSON manifest.
           </CardDescription>
+          <CardAction>
+            <Badge variant="outline" className="h-6 font-mono text-[11px]">
+              20 Files
+            </Badge>
+          </CardAction>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="py-6">
           <form
             onSubmit={(event) => {
               event.preventDefault()
@@ -92,13 +112,14 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
           >
             <FieldGroup>
               <Field data-invalid={directoryError ? true : undefined}>
-                <FieldLabel htmlFor="output-directory">Output directory</FieldLabel>
+                <FieldLabel htmlFor="output-directory">Output Directory</FieldLabel>
                 <InputGroup className="h-11 bg-background">
                   <InputGroupInput
                     ref={directoryInputRef}
                     id="output-directory"
                     name="output-directory"
                     autoComplete="off"
+                    spellCheck={false}
                     value={outputDirectory}
                     onChange={(event) => updateOutputDirectory(event.target.value)}
                     placeholder="C:\Users\You\Desktop\datasets"
@@ -131,7 +152,7 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
               </Field>
 
               <Field data-invalid={seedError ? true : undefined}>
-                <FieldLabel htmlFor="base-seed">Base seed</FieldLabel>
+                <FieldLabel htmlFor="base-seed">Base Seed</FieldLabel>
                 <InputGroup className="h-11 bg-background">
                   <InputGroupInput
                     ref={seedInputRef}
@@ -146,10 +167,23 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
                     aria-invalid={seedError ? true : undefined}
                     aria-describedby={`base-seed-description${seedError ? " base-seed-error" : ""}`}
                     disabled={running}
+                    className="font-mono"
                   />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      size="sm"
+                      variant="secondary"
+                      disabled={running}
+                      onClick={randomizeSeed}
+                      aria-label="Generate Random 64-Bit Seed"
+                    >
+                      <ShuffleIcon aria-hidden="true" />
+                      Randomize
+                    </InputGroupButton>
+                  </InputGroupAddon>
                 </InputGroup>
                 <FieldDescription id="base-seed-description" className="text-xs">
-                  A whole number from 0 to 18,446,744,073,709,551,615 for reproducible files.
+                  Unsigned 64-bit integer from 0 to 18,446,744,073,709,551,615 for reproducible files.
                 </FieldDescription>
                 {seedError && <FieldError id="base-seed-error">{seedError}</FieldError>}
               </Field>
@@ -157,97 +191,85 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button type="submit" size="lg" className="h-10 px-5" disabled={running}>
                   {running ? <Spinner /> : <DatabaseIcon aria-hidden="true" />}
-                  {running ? "Generating…" : "Generate all datasets"}
+                  {running ? "Generating…" : "Generate All Datasets"}
                 </Button>
-                <p className="text-xs text-muted-foreground">10 closest-pair + 10 multiplication files</p>
+                <p className="text-xs text-muted-foreground">
+                  Writes 10 closest-pair and 10 multiplication files with their seed manifest.
+                </p>
               </div>
             </FieldGroup>
           </form>
 
           <Separator className="my-6" />
 
-          <div aria-busy={running}>
-            {status === "error" && (
-              <Alert variant="destructive">
-                <CircleAlertIcon className="size-4" aria-hidden="true" />
-                <AlertTitle>Unable to generate datasets</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            {status === "success" && result && (
-              <Alert role="status">
-                <CheckCircle2Icon className="size-4 text-success" aria-hidden="true" />
-                <AlertTitle>{result.filesGenerated} files generated</AlertTitle>
-                <AlertDescription>
-                  <span className="block">
-                    Output directory:{" "}
-                    <code className="break-all font-mono text-xs">{result.outputDirectory}</code>
-                  </span>
-                  <span className="mt-1 block">
-                    Manifest: <code className="break-all font-mono text-xs">{result.manifestPath}</code>
-                  </span>
-                  <span className="mt-1 block">
-                    Karatsuba: <code className="break-all font-mono text-xs">{result.karatsubaDirectory}</code>
-                  </span>
-                  <span className="mt-1 block">
-                    Closest pair (cpp): <code className="break-all font-mono text-xs">{result.closestPairDirectory}</code>
-                  </span>
-                </AlertDescription>
-              </Alert>
-            )}
-            {status === "idle" && (
-              <div
-                className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground"
-                role="status"
+          <ResultPanel
+            status={status}
+            error={error}
+            idleDescription="Choose an output directory and base seed to generate all 20 datasets and their seed manifest."
+            runningTitle="Generating Dataset Collection"
+            runningDescription="Writing 20 files and recording their seeds. Million-element files may take a moment."
+          >
+            {result && (
+              <section
+                className="rounded-xl border bg-muted/20 p-4 sm:p-5"
+                aria-labelledby="generation-summary-title"
               >
-                <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                <p>The generator writes every dataset and records the seed used for each file.</p>
-              </div>
-            )}
-            {running && (
-              <div className="flex items-center gap-3 rounded-xl border-primary/20 bg-muted/20 p-4 text-sm" role="status">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                  <DatabaseIcon className="size-4" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="font-medium">Generating the dataset collection</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Writing 20 files and recording their seeds. Large files may take a moment.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success">
+                    <CheckCircle2Icon className="size-5" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                      Generation Report
+                    </p>
+                    <h3 id="generation-summary-title" className="mt-1 text-base font-semibold">
+                      {result.filesGenerated} Datasets Generated
+                    </h3>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      The Karatsuba batch directory has been linked automatically for immediate execution.
+                    </p>
+                  </div>
                 </div>
-              </div>
+
+                <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <ResultMetric label="Output Directory" value={result.outputDirectory} />
+                  <ResultMetric label="Seed Manifest" value={result.manifestPath} />
+                  <ResultMetric label="Karatsuba Folder" value={result.karatsubaDirectory} />
+                  <ResultMetric label="Closest-Pair Folder" value={result.closestPairDirectory} />
+                </dl>
+              </section>
             )}
-          </div>
+          </ResultPanel>
         </CardContent>
       </Card>
 
       <ItemGroup className="grid gap-3 sm:grid-cols-2">
-        <Item variant="muted" role="listitem" className="rounded-xl bg-card">
+        <Item variant="outline" role="listitem" className="rounded-xl bg-card">
           <ItemMedia variant="icon" className="size-10 rounded-xl bg-accent text-accent-foreground">
             <CrosshairIcon className="size-5" aria-hidden="true" />
           </ItemMedia>
           <ItemContent className="min-w-0">
-            <ItemTitle>Closest-pair inputs</ItemTitle>
+            <ItemTitle>Closest-Pair Inputs</ItemTitle>
             <ItemDescription className="line-clamp-none text-xs">
               Uniform, clustered, duplicate, vertical, grid, split-line, and trace cases.
             </ItemDescription>
           </ItemContent>
           <ItemActions>
-            <Badge variant="secondary">10 files</Badge>
+            <Badge variant="secondary">10 Files</Badge>
           </ItemActions>
         </Item>
-        <Item variant="muted" role="listitem" className="rounded-xl bg-card">
+        <Item variant="outline" role="listitem" className="rounded-xl bg-card">
           <ItemMedia variant="icon" className="size-10 rounded-xl bg-accent text-accent-foreground">
             <CalculatorIcon className="size-5" aria-hidden="true" />
           </ItemMedia>
           <ItemContent className="min-w-0">
-            <ItemTitle>Multiplication inputs</ItemTitle>
+            <ItemTitle>Multiplication Inputs</ItemTitle>
             <ItemDescription className="line-clamp-none text-xs">
               Random, unbalanced, all-9s, zeros, powers-of-10, and trace cases.
             </ItemDescription>
           </ItemContent>
           <ItemActions>
-            <Badge variant="secondary">10 files</Badge>
+            <Badge variant="secondary">10 Files</Badge>
           </ItemActions>
         </Item>
       </ItemGroup>

@@ -39,7 +39,6 @@ export function ModeToggle() {
             <DropdownMenuRadioItem
               key={item.value}
               value={item.value}
-              className="focus:outline-2 focus:outline-offset-2 focus:outline-ring focus:ring-2 focus:ring-ring"
             >
               {item.label}
             </DropdownMenuRadioItem>

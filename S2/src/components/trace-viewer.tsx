@@ -1,7 +1,14 @@
 import { useId, useState } from "react"
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import {
   Collapsible,
   CollapsibleContent,
@@ -23,36 +30,41 @@ export function TraceViewer({ steps }: { steps: AlgorithmStep[] }) {
   return (
     <Collapsible className="rounded-xl border bg-muted/10">
       <h3>
-        <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring">
+        <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <span className="flex min-w-0 items-center gap-2">
-            <span className="text-sm font-medium">Step-by-step trace</span>
+            <span className="text-sm font-medium">Step-by-Step Trace</span>
             <Badge variant="secondary" className="shrink-0 tabular-nums">
-              {numberFormatter.format(steps.length)}{"\u00a0"}steps
+              {numberFormatter.format(steps.length)}{"\u00a0"}Steps
             </Badge>
           </span>
-          <ChevronDownIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-panel-open:rotate-180" />
+          <ChevronDownIcon
+            aria-hidden="true"
+            className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-panel-open:rotate-180"
+          />
         </CollapsibleTrigger>
       </h3>
       <CollapsibleContent className="border-t">
-        <ScrollArea key={currentPage} className="h-72" viewportLabel="Algorithm trace">
+        <ScrollArea key={currentPage} className="h-72" viewportLabel="Algorithm Trace">
           <ol id={tracePagesId} start={currentPage * PAGE_SIZE + 1} className="space-y-2 p-3">
             {visibleSteps.map((step, index) => {
               const stepNumber = currentPage * PAGE_SIZE + index + 1
               return (
-                <li key={stepNumber} className="flex gap-3 rounded-lg bg-background p-3">
+                <li key={stepNumber} className="flex gap-3 rounded-lg border bg-background p-3">
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-secondary font-mono text-[11px] text-secondary-foreground tabular-nums">
                     {numberFormatter.format(stepNumber)}
                   </span>
-                  <div className="min-w-0">
-                    <p className="break-words font-mono text-xs font-medium">{step.title}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="break-words font-mono text-xs font-medium">{step.title}</p>
+                      {step.depth !== undefined && (
+                        <Badge variant="outline" className="h-4 px-1.5 font-mono text-[10px] tabular-nums">
+                          Depth {numberFormatter.format(step.depth)}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">
                       {step.description}
                     </p>
-                    {step.depth !== undefined && (
-                      <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
-                        Depth {numberFormatter.format(step.depth)}
-                      </p>
-                    )}
                   </div>
                 </li>
               )
@@ -69,11 +81,21 @@ export function TraceViewer({ steps }: { steps: AlgorithmStep[] }) {
             >
               Page {numberFormatter.format(currentPage + 1)} of {numberFormatter.format(pageCount)}
             </span>
-            <div className="flex gap-1">
+            <ButtonGroup>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon-sm"
-                aria-label="Previous trace page"
+                aria-label="First Trace Page"
+                aria-controls={tracePagesId}
+                disabled={currentPage === 0}
+                onClick={() => setPage(0)}
+              >
+                <ChevronsLeftIcon aria-hidden="true" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="Previous Trace Page"
                 aria-controls={tracePagesId}
                 disabled={currentPage === 0}
                 onClick={() => setPage(currentPage - 1)}
@@ -81,16 +103,26 @@ export function TraceViewer({ steps }: { steps: AlgorithmStep[] }) {
                 <ChevronLeftIcon aria-hidden="true" />
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon-sm"
-                aria-label="Next trace page"
+                aria-label="Next Trace Page"
                 aria-controls={tracePagesId}
                 disabled={currentPage === pageCount - 1}
                 onClick={() => setPage(currentPage + 1)}
               >
                 <ChevronRightIcon aria-hidden="true" />
               </Button>
-            </div>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="Last Trace Page"
+                aria-controls={tracePagesId}
+                disabled={currentPage === pageCount - 1}
+                onClick={() => setPage(pageCount - 1)}
+              >
+                <ChevronsRightIcon aria-hidden="true" />
+              </Button>
+            </ButtonGroup>
           </div>
         )}
       </CollapsibleContent>

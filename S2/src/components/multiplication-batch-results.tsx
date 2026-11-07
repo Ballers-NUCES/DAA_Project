@@ -13,6 +13,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Progress } from "@/components/ui/progress"
 import { Spinner } from "@/components/ui/spinner"
 import type {
   AlgorithmFileResult,
@@ -58,7 +59,7 @@ function MultiplicationFileRecord({
       className="rounded-xl border bg-card transition-colors hover:border-ring/40 data-disabled:opacity-75 [content-visibility:auto] [contain-intrinsic-size:auto_76px]"
     >
       <h4>
-        <CollapsibleTrigger className="group flex w-full flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring data-disabled:cursor-default sm:flex-nowrap">
+        <CollapsibleTrigger className="group flex w-full flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 data-disabled:cursor-default sm:flex-nowrap">
           <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors ${iconContainerClass}`}>
             {isRunning ? (
               <Spinner className="size-4" />
@@ -116,7 +117,7 @@ function MultiplicationFileRecord({
             ) : (
               <Alert variant="destructive">
                 <CircleAlertIcon className="size-4" aria-hidden="true" />
-                <AlertTitle>{file.fileName} could not be multiplied</AlertTitle>
+                <AlertTitle>{file.fileName} Could Not Be Multiplied</AlertTitle>
                 <AlertDescription>{file.error ?? "The file did not produce a result."}</AlertDescription>
               </Alert>
             )}
@@ -136,6 +137,8 @@ export function MultiplicationBatchResultView({
 }) {
   const allSucceeded = batch.failed === 0
   const completedCount = batch.succeeded + batch.failed
+  const progressValue =
+    batch.totalFiles > 0 ? Math.round((completedCount / batch.totalFiles) * 100) : 0
 
   return (
     <div className="space-y-5">
@@ -158,16 +161,16 @@ export function MultiplicationBatchResultView({
               <CircleAlertIcon className="size-5" aria-hidden="true" />
             )}
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-              Batch report
+              Batch Report
             </p>
             <h3 id="batch-summary-title" className="mt-1 text-base font-semibold text-balance">
               {running
-                ? `Running multiplications (${numberFormatter.format(completedCount)} of ${numberFormatter.format(batch.totalFiles)})`
+                ? `Running Multiplications (${numberFormatter.format(completedCount)} of ${numberFormatter.format(batch.totalFiles)})`
                 : allSucceeded
-                  ? "All multiplications complete"
-                  : "Batch complete with errors"}
+                  ? "All Multiplications Complete"
+                  : "Batch Complete with Errors"}
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               {numberFormatter.format(batch.succeeded)} succeeded
@@ -179,9 +182,15 @@ export function MultiplicationBatchResultView({
           </div>
         </div>
 
-        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+        <Progress
+          value={progressValue}
+          aria-label="Batch Progress"
+          className="mt-4"
+        />
+
+        <dl className="mt-4 grid gap-3 sm:grid-cols-3">
           <ResultMetric
-            label="Files processed"
+            label="Files Processed"
             value={
               running
                 ? `${numberFormatter.format(completedCount)} / ${numberFormatter.format(batch.totalFiles)}`
@@ -189,13 +198,13 @@ export function MultiplicationBatchResultView({
             }
           />
           <ResultMetric label="Successful" value={numberFormatter.format(batch.succeeded)} />
-          <ResultMetric label="Total algorithm time" value={formatDuration(batch.totalElapsedMicros)} />
+          <ResultMetric label="Total Algorithm Time" value={formatDuration(batch.totalElapsedMicros)} />
         </dl>
       </section>
 
       <section aria-labelledby="dataset-results-title">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 id="dataset-results-title" className="text-sm font-medium">Dataset results</h3>
+          <h3 id="dataset-results-title" className="text-sm font-medium">Dataset Results</h3>
           <span className="text-xs text-muted-foreground">Open a completed file to inspect its product</span>
         </div>
         {batch.files.length > 0 ? (

@@ -22,22 +22,24 @@ function App() {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:ring-3 focus:ring-ring"
       >
-        Skip to main content
+        Skip to Main Content
       </a>
       <AppHeader />
 
       <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
           <div className="mb-6 max-w-2xl">
-            <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">Algorithm workspace</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+              Algorithm Workspace
+            </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Run the required algorithms, inspect their traces, or generate input datasets.
+              Run divide-and-conquer algorithms, inspect their step-by-step traces, or generate reproducible benchmark datasets.
             </p>
           </div>
 
           <Tabs defaultValue="closest-pair">
             <TabsList
-              aria-label="Workspace sections"
+              aria-label="Workspace Sections"
               className="grid h-12 w-full grid-cols-3 gap-1 rounded-xl border bg-card p-1 shadow-xs group-data-horizontal/tabs:h-12"
             >
               <TabsTrigger
@@ -50,7 +52,7 @@ function App() {
               </TabsTrigger>
               <TabsTrigger
                 value="karatsuba"
-                aria-label="Karatsuba"
+                aria-label="Karatsuba Multiplication"
                 className="h-full min-w-0 gap-2 px-2"
               >
                 <CalculatorIcon className="size-4" aria-hidden="true" />
@@ -69,14 +71,16 @@ function App() {
             <TabsContent value="closest-pair" className="mt-4">
               <AlgorithmPanel
                 id="closest-pair"
-                title="Closest pair of points"
-                description="Find the two nearest points in a 2-D plane using divide and conquer."
+                badge="Divide & Conquer"
+                subtitle="2-D Euclidean Plane"
+                title="Closest Pair of Points"
+                description="Find the two nearest points in a two-dimensional plane using recursive spatial partitioning."
                 complexity="O(n log n)"
-                actionLabel="Run closest pair"
-                idleDescription="Select a dataset and run the algorithm to see the closest points, distance, running time, and trace when available."
+                actionLabel="Run Closest Pair"
+                idleDescription="Select a dataset and run the algorithm to see the closest points, Euclidean distance, running time, and step-by-step trace."
                 datasets={closestPairDatasets}
-                datasetTitle="Closest-pair datasets"
-                datasetDescription="Input sizes and edge cases for cp01–cp10."
+                datasetTitle="Closest-Pair Datasets"
+                datasetDescription="Input sizes and geometric edge cases for cp01–cp10."
                 fileHint="Choose cp01–cp10. Files are assumed valid."
                 file={closestPair.file}
                 status={closestPair.status}

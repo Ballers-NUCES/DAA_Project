@@ -23,7 +23,7 @@ export function ResultPanel({
   status,
   error,
   idleDescription,
-  runningTitle = "Run in progress",
+  runningTitle = "Run in Progress",
   runningDescription = "Processing the selected input. Large datasets may take longer.",
   children,
 }: ResultPanelProps) {
@@ -33,17 +33,17 @@ export function ResultPanel({
         {status === "running"
           ? `${runningTitle}. ${runningDescription}`
           : status === "success"
-            ? "Algorithm completed. Results are available below."
+            ? "Execution completed. Results are available below."
             : ""}
       </p>
-      <section aria-label="Algorithm results" aria-busy={status === "running"}>
+      <section aria-label="Execution Results" aria-busy={status === "running"}>
         {status === "idle" && (
           <Empty className="border bg-muted/20 py-8">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <PlayIcon className="size-4" aria-hidden="true" />
               </EmptyMedia>
-              <EmptyTitle>No run yet</EmptyTitle>
+              <EmptyTitle>Ready to Run</EmptyTitle>
               <EmptyDescription>{idleDescription}</EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -53,7 +53,7 @@ export function ResultPanel({
           children ? (
             <div>{children}</div>
           ) : (
-            <Empty className="border-primary/20 bg-muted/20 py-8">
+            <Empty className="border border-primary/20 bg-muted/20 py-8">
               <EmptyHeader>
                 <EmptyMedia variant="icon" className="bg-secondary text-secondary-foreground">
                   <Clock3Icon className="size-4" aria-hidden="true" />
@@ -68,7 +68,7 @@ export function ResultPanel({
         {status === "error" && (
           <Alert variant="destructive">
             <CircleAlertIcon className="size-4" aria-hidden="true" />
-            <AlertTitle>Unable to complete the run</AlertTitle>
+            <AlertTitle>Unable to Complete the Operation</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}

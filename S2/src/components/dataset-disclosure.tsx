@@ -26,13 +26,13 @@ interface DatasetDisclosureProps {
 export function DatasetDisclosure({ title, description, rows }: DatasetDisclosureProps) {
   return (
     <Collapsible>
-      <Card>
+      <Card className="shadow-xs">
         <CardHeader className="pb-3">
           <h3>
-            <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-lg text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-3 focus-visible:ring-ring">
+            <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
               <span className="font-heading text-base font-medium">{title}</span>
               <span className="flex items-center gap-2">
-                <Badge variant="secondary">{rows.length} files</Badge>
+                <Badge variant="secondary">{rows.length} Files</Badge>
                 <ChevronDownIcon
                   aria-hidden="true"
                   className="size-4 text-muted-foreground transition-transform duration-200 group-data-panel-open:rotate-180"
@@ -49,7 +49,7 @@ export function DatasetDisclosure({ title, description, rows }: DatasetDisclosur
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-20">File</TableHead>
-                  <TableHead>Input size</TableHead>
+                  <TableHead>Input Size</TableHead>
                   <TableHead>Description</TableHead>
                 </TableRow>
               </TableHeader>

@@ -24,13 +24,14 @@ const fileSizeFormatter = new Intl.NumberFormat(undefined, {
 })
 
 function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${byteFormatter.format(bytes)} B`
-  if (bytes < 1024 * 1024) return `${fileSizeFormatter.format(bytes / 1024)} KB`
-  return `${fileSizeFormatter.format(bytes / (1024 * 1024))} MB`
+  if (bytes < 1024) return `${byteFormatter.format(bytes)}\u00a0B`
+  if (bytes < 1024 * 1024) return `${fileSizeFormatter.format(bytes / 1024)}\u00a0KB`
+  return `${fileSizeFormatter.format(bytes / (1024 * 1024))}\u00a0MB`
 }
 
 export function FilePicker({ id, file, fileHint, disabled, onFileChange }: FilePickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const browseButtonRef = useRef<HTMLButtonElement>(null)
   const descriptionId = `${id}-description`
   const openPicker = () => {
     if (!disabled) inputRef.current?.click()
@@ -38,26 +39,46 @@ export function FilePicker({ id, file, fileHint, disabled, onFileChange }: FileP
 
   return (
     <Field>
-      <FieldLabel htmlFor={id}>Input file</FieldLabel>
+      <FieldLabel htmlFor={id}>Input File</FieldLabel>
       <InputGroup className="h-11 bg-background">
+        <InputGroupAddon align="inline-start">
+          <FileTextIcon className="size-4" aria-hidden="true" />
+        </InputGroupAddon>
         <InputGroupInput
           id={id}
           value={file?.name ?? ""}
-          placeholder="Select a plain-text dataset"
+          placeholder="Select a plain-text dataset…"
           readOnly
           disabled={disabled}
           tabIndex={-1}
           onClick={openPicker}
-          className="cursor-pointer"
+          className="cursor-pointer font-mono"
           aria-describedby={descriptionId}
         />
         {file && (
-          <InputGroupAddon align="inline-end" className="text-success">
-            <CheckCircle2Icon className="size-4" aria-hidden="true" />
-          </InputGroupAddon>
+          <>
+            <InputGroupAddon align="inline-end" className="text-success">
+              <CheckCircle2Icon className="size-4" aria-hidden="true" />
+            </InputGroupAddon>
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                size="icon-xs"
+                variant="ghost"
+                disabled={disabled}
+                aria-label={`Clear ${file.name}`}
+                onClick={() => {
+                  onFileChange(null)
+                  browseButtonRef.current?.focus()
+                }}
+              >
+                <XIcon aria-hidden="true" />
+              </InputGroupButton>
+            </InputGroupAddon>
+          </>
         )}
         <InputGroupAddon align="inline-end">
           <InputGroupButton
+            ref={browseButtonRef}
             size="sm"
             variant="secondary"
             disabled={disabled}
@@ -101,19 +122,21 @@ export function FilesPicker({ id, files, disabled, onFilesChange }: FilesPickerP
   const removeButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const descriptionId = `${id}-description`
   const totalBytes = files.reduce((total, file) => total + file.size, 0)
-  const selectionLabel = files.length === 0
-    ? ""
-    : files.length === 1
-      ? files[0].name
-      : `${files.length} files selected`
+  const selectionLabel =
+    files.length === 0
+      ? ""
+      : files.length === 1
+        ? files[0].name
+        : `${files.length} files selected`
   const openPicker = () => {
     if (!disabled) inputRef.current?.click()
   }
 
   const removeFile = (index: number) => {
-    const focusTarget = index < files.length - 1
-      ? removeButtonRefs.current[index + 1]
-      : removeButtonRefs.current[index - 1]
+    const focusTarget =
+      index < files.length - 1
+        ? removeButtonRefs.current[index + 1]
+        : removeButtonRefs.current[index - 1]
     const buttonToFocus = focusTarget ?? chooseButtonRef.current
     buttonToFocus?.focus()
     onFilesChange(files.filter((_, fileIndex) => fileIndex !== index))
@@ -121,8 +144,11 @@ export function FilesPicker({ id, files, disabled, onFilesChange }: FilesPickerP
 
   return (
     <Field>
-      <FieldLabel htmlFor={id}>Input files</FieldLabel>
+      <FieldLabel htmlFor={id}>Input Files</FieldLabel>
       <InputGroup className="h-11 bg-background">
+        <InputGroupAddon align="inline-start">
+          <FileTextIcon className="size-4" aria-hidden="true" />
+        </InputGroupAddon>
         <InputGroupInput
           id={id}
           name={id}
@@ -175,7 +201,7 @@ export function FilesPicker({ id, files, disabled, onFilesChange }: FilesPickerP
       </FieldDescription>
 
       {files.length > 0 && (
-        <ul className="mt-1 divide-y rounded-xl border bg-muted/20" aria-label="Selected input files">
+        <ul className="mt-1 divide-y rounded-xl border bg-muted/20" aria-label="Selected Input Files">
           {files.map((file, index) => (
             <li
               key={`${file.name}-${file.size}-${file.lastModified}`}
