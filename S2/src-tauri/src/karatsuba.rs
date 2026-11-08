@@ -1,5 +1,6 @@
 use rayon::join;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use specta::Type;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
@@ -19,7 +20,7 @@ const MULTIPLICATION_FILES: [&str; 10] = [
     "im09.txt", "im10.txt",
 ];
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AlgorithmStep {
     pub title: String,
@@ -28,7 +29,7 @@ pub struct AlgorithmStep {
     pub depth: Option<usize>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiplicationResult {
     pub product: String,
@@ -39,13 +40,7 @@ pub struct MultiplicationResult {
     pub trace: Option<Vec<AlgorithmStep>>,
 }
 
-#[derive(Deserialize)]
-pub struct DecimalInput {
-    pub name: String,
-    pub content: String,
-}
-
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiplicationFileResult {
     pub file_name: String,
@@ -55,7 +50,7 @@ pub struct MultiplicationFileResult {
     pub error: Option<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum KaratsubaProgressEvent {
     #[serde(rename_all = "camelCase")]
@@ -67,7 +62,7 @@ pub enum KaratsubaProgressEvent {
     },
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiplicationBatchResult {
     pub source: String,
@@ -185,23 +180,32 @@ pub fn multiply_folder_with_progress(
 }
 
 #[cfg(test)]
-pub fn multiply_files(inputs: Vec<DecimalInput>) -> Result<MultiplicationBatchResult, String> {
-    multiply_files_with_progress(inputs, |_| {})
+pub fn multiply_files(paths: Vec<String>) -> Result<MultiplicationBatchResult, String> {
+    multiply_files_with_progress(paths, |_| {})
 }
 
 pub fn multiply_files_with_progress(
-    inputs: Vec<DecimalInput>,
+    paths: Vec<String>,
     mut on_progress: impl FnMut(KaratsubaProgressEvent),
 ) -> Result<MultiplicationBatchResult, String> {
-    if inputs.is_empty() {
+    if paths.is_empty() {
         return Err(
             "Choose at least one multiplication input file before running Karatsuba.".to_owned(),
         );
     }
 
-    let inputs = inputs
-        .into_iter()
-        .map(|input| (input.name, move || Ok(input.content)));
+    let inputs = paths.into_iter().map(|path| {
+        let file_name = Path::new(&path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(&path)
+            .to_owned();
+        (file_name, move || {
+            fs::read_to_string(&path).map_err(|error| {
+                format!("The file could not be read: {error}. Choose a readable plain-text file.")
+            })
+        })
+    });
     Ok(multiply_named_files(
         "Selected files".to_owned(),
         inputs,
@@ -945,21 +949,24 @@ mod tests {
 
     #[test]
     fn batches_preserve_file_order_and_continue_after_errors() {
-        let batch = multiply_files(vec![
-            DecimalInput {
-                name: "first.txt".to_owned(),
-                content: "12\n34".to_owned(),
-            },
-            DecimalInput {
-                name: "invalid.txt".to_owned(),
-                content: "not a number".to_owned(),
-            },
-            DecimalInput {
-                name: "last.txt".to_owned(),
-                content: "0\n999".to_owned(),
-            },
-        ])
-        .unwrap();
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join(format!("test-karatsuba-files-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).unwrap();
+        for (file_name, content) in [
+            ("first.txt", "12\n34"),
+            ("invalid.txt", "not a number"),
+            ("last.txt", "0\n999"),
+        ] {
+            fs::write(directory.join(file_name), content).unwrap();
+        }
+        let paths = ["first.txt", "invalid.txt", "last.txt"]
+            .map(|file_name| directory.join(file_name).to_string_lossy().into_owned())
+            .to_vec();
+
+        let batch = multiply_files(paths).unwrap();
+        fs::remove_dir_all(&directory).unwrap();
 
         assert_eq!(batch.total_files, 3);
         assert_eq!(batch.succeeded, 2);

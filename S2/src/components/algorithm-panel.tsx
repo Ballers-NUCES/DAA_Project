@@ -31,10 +31,10 @@ interface AlgorithmPanelProps {
   datasetTitle: string
   datasetDescription: string
   fileHint: string
-  file: File | null
+  file: string | null
   status: WorkflowStatus
   error: string | null
-  onFileChange: (file: File | null) => void
+  onFileChange: (file: string | null) => void
   onRun: () => void
   children: ReactNode
 }

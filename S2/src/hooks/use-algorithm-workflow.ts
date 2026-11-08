@@ -1,14 +1,14 @@
 import { useCallback, useRef, useState } from "react"
 import type { WorkflowStatus } from "@/types/workflow"
 
-export function useAlgorithmWorkflow<T>(runner: (file: File) => Promise<T>) {
-  const [file, setFile] = useState<File | null>(null)
+export function useAlgorithmWorkflow<T>(runner: (path: string) => Promise<T>) {
+  const [file, setFile] = useState<string | null>(null)
   const [status, setStatus] = useState<WorkflowStatus>("idle")
   const [result, setResult] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
   const requestId = useRef(0)
 
-  const selectFile = useCallback((nextFile: File | null) => {
+  const selectFile = useCallback((nextFile: string | null) => {
     requestId.current += 1
     setFile(nextFile)
     setStatus("idle")

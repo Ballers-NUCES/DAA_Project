@@ -1,10 +1,20 @@
-export type WorkflowStatus = "idle" | "running" | "success" | "error"
+import type {
+  AlgorithmStep,
+  GenerationResult,
+  KaratsubaProgressEvent,
+  MultiplicationFileResult,
+  MultiplicationResult,
+} from "@/bindings"
 
-export interface AlgorithmStep {
-  title: string
-  description: string
-  depth?: number
+export type {
+  AlgorithmStep,
+  GenerationResult,
+  KaratsubaProgressEvent,
+  MultiplicationFileResult,
+  MultiplicationResult,
 }
+
+export type WorkflowStatus = "idle" | "running" | "success" | "error"
 
 export interface Point {
   x: number
@@ -17,35 +27,15 @@ export interface ClosestPairResult {
   distance: number
   inputSize: number
   elapsedMicros: number
-  trace?: AlgorithmStep[]
-}
-
-export interface MultiplicationResult {
-  product: string
-  leftDigits: number
-  rightDigits: number
-  elapsedMicros: number
-  trace?: AlgorithmStep[]
+  trace?: AlgorithmStep[] | null
 }
 
 export interface AlgorithmFileResult<T> {
   fileName: string
   status?: "pending" | "running" | "completed"
-  result?: T
-  error?: string
+  result?: T | null
+  error?: string | null
 }
-
-export type KaratsubaProgressEvent =
-  | {
-      kind: "started"
-      index: number
-      fileName: string
-    }
-  | {
-      kind: "finished"
-      index: number
-      file: AlgorithmFileResult<MultiplicationResult>
-    }
 
 export interface AlgorithmBatchResult<T> {
   source: string
@@ -57,11 +47,3 @@ export interface AlgorithmBatchResult<T> {
 }
 
 export type MultiplicationBatchResult = AlgorithmBatchResult<MultiplicationResult>
-
-export interface GenerationResult {
-  filesGenerated: number
-  manifestPath: string
-  outputDirectory: string
-  karatsubaDirectory: string
-  closestPairDirectory: string
-}

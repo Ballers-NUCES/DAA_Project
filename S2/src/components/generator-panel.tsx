@@ -135,10 +135,10 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
                       size="sm"
                       variant="secondary"
                       disabled={running}
-                      onClick={async () => {
-                        const selected = await pickFolder(outputDirectory)
-                        if (selected) updateOutputDirectory(selected)
-                      }}
+                    onClick={async () => {
+                      const selected = await pickFolder(outputDirectory).catch(() => null)
+                      if (selected) updateOutputDirectory(selected)
+                    }}
                     >
                       <FolderOpenIcon aria-hidden="true" />
                       Browse

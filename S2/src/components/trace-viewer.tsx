@@ -56,7 +56,7 @@ export function TraceViewer({ steps }: { steps: AlgorithmStep[] }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="break-words font-mono text-xs font-medium">{step.title}</p>
-                      {step.depth !== undefined && (
+                      {step.depth != null && (
                         <Badge variant="outline" className="h-4 px-1.5 font-mono text-[10px] tabular-nums">
                           Depth {numberFormatter.format(step.depth)}
                         </Badge>

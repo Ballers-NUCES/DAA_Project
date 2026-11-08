@@ -103,7 +103,7 @@
     scrollbar-color: var(--ring) transparent;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply overflow-hidden bg-background text-foreground antialiased;
   }
   html {
     @apply font-sans;

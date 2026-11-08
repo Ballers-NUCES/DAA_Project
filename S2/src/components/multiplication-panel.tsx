@@ -1,3 +1,4 @@
+import { useRef } from "react"
 import { FilesIcon, FolderOpenIcon, PlayIcon } from "lucide-react"
 import { DatasetDisclosure } from "@/components/dataset-disclosure"
 import { FilesPicker } from "@/components/file-picker"
@@ -13,7 +14,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field"
 import {
   InputGroup,
   InputGroupAddon,
@@ -42,19 +49,23 @@ export function MultiplicationPanel({ workflow }: MultiplicationPanelProps) {
     status,
     result,
     error,
+    directoryError,
     canRun,
     selectSourceMode,
     updateDirectory,
     selectFiles,
     run,
   } = workflow
+  const directoryInputRef = useRef<HTMLInputElement>(null)
   const running = status === "running"
   const runLabel =
     sourceMode === "folder"
       ? "Run All 10 Datasets"
-      : files.length === 1
-        ? "Run Selected File"
-        : `Run ${files.length || ""} Selected Files`.trim()
+      : files.length === 0
+        ? "Run Selected Files"
+        : files.length === 1
+          ? "Run Selected File"
+          : `Run ${files.length} Selected Files`
 
   return (
     <div className="space-y-5">
@@ -84,11 +95,15 @@ export function MultiplicationPanel({ workflow }: MultiplicationPanelProps) {
             className="space-y-5"
             onSubmit={(event) => {
               event.preventDefault()
-              void run()
+              void run().then((invalidField) => {
+                if (invalidField === "directory") {
+                  directoryInputRef.current?.focus()
+                }
+              })
             }}
           >
             <Field>
-              <FieldLabel id="karatsuba-source-label">Input Source</FieldLabel>
+              <FieldTitle id="karatsuba-source-label">Input Source</FieldTitle>
               <ToggleGroup
                 value={[sourceMode]}
                 onValueChange={(values) => {
@@ -118,10 +133,11 @@ export function MultiplicationPanel({ workflow }: MultiplicationPanelProps) {
             </Field>
 
             {sourceMode === "folder" ? (
-              <Field>
+              <Field data-invalid={directoryError ? true : undefined}>
                 <FieldLabel htmlFor="karatsuba-directory">Karatsuba Dataset Folder</FieldLabel>
                 <InputGroup className="h-11 bg-background">
                   <InputGroupInput
+                    ref={directoryInputRef}
                     id="karatsuba-directory"
                     name="karatsuba-directory"
                     value={directory}
@@ -130,7 +146,8 @@ export function MultiplicationPanel({ workflow }: MultiplicationPanelProps) {
                     autoComplete="off"
                     spellCheck={false}
                     disabled={running}
-                    aria-describedby="karatsuba-directory-description"
+                    aria-invalid={directoryError ? true : undefined}
+                    aria-describedby={`karatsuba-directory-description${directoryError ? " karatsuba-directory-error" : ""}`}
                   />
                   <InputGroupAddon align="inline-start">
                     <FolderOpenIcon className="size-4" aria-hidden="true" />
@@ -141,7 +158,7 @@ export function MultiplicationPanel({ workflow }: MultiplicationPanelProps) {
                       variant="secondary"
                       disabled={running}
                       onClick={async () => {
-                        const selected = await pickFolder(directory)
+                        const selected = await pickFolder(directory).catch(() => null)
                         if (selected) updateDirectory(selected)
                       }}
                     >
@@ -153,6 +170,7 @@ export function MultiplicationPanel({ workflow }: MultiplicationPanelProps) {
                 <FieldDescription id="karatsuba-directory-description" className="text-xs leading-relaxed">
                   Runs <code translate="no">im01.txt</code> through <code translate="no">im10.txt</code> in order. Generating datasets fills this path automatically.
                 </FieldDescription>
+                {directoryError && <FieldError id="karatsuba-directory-error">{directoryError}</FieldError>}
               </Field>
             ) : (
               <FilesPicker

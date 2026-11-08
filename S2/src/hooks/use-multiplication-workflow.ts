@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { multiplicationDatasets } from "@/data/datasets"
-import { runKaratsuba } from "@/lib/backend"
+import { fileNameFromPath, runKaratsuba } from "@/lib/backend"
 import type {
   KaratsubaProgressEvent,
   MultiplicationBatchResult,
@@ -12,10 +12,11 @@ export type MultiplicationSourceMode = "folder" | "files"
 export function useMultiplicationWorkflow(defaultDirectory?: string) {
   const [sourceMode, setSourceMode] = useState<MultiplicationSourceMode>("folder")
   const [directory, setDirectory] = useState("")
-  const [files, setFiles] = useState<File[]>([])
+  const [files, setFiles] = useState<string[]>([])
   const [status, setStatus] = useState<WorkflowStatus>("idle")
   const [result, setResult] = useState<MultiplicationBatchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [directoryError, setDirectoryError] = useState<string | null>(null)
   const requestId = useRef(0)
 
   function resetOutput() {
@@ -30,6 +31,7 @@ export function useMultiplicationWorkflow(defaultDirectory?: string) {
     requestId.current += 1
     setSourceMode("folder")
     setDirectory(defaultDirectory)
+    setDirectoryError(null)
     setFiles([])
     setStatus("idle")
     setResult(null)
@@ -39,42 +41,45 @@ export function useMultiplicationWorkflow(defaultDirectory?: string) {
   function selectSourceMode(nextMode: MultiplicationSourceMode) {
     if (nextMode === sourceMode) return
     setSourceMode(nextMode)
+    setDirectoryError(null)
     resetOutput()
   }
 
   function updateDirectory(value: string) {
     setDirectory(value)
+    setDirectoryError(null)
     resetOutput()
   }
 
-  function selectFiles(nextFiles: File[]) {
+  function selectFiles(nextFiles: string[]) {
     setFiles(nextFiles)
     resetOutput()
   }
 
-  async function run() {
-    if (status === "running") return
+  async function run(): Promise<"directory" | null> {
+    if (status === "running") return null
 
     const trimmedDirectory = directory.trim()
     if (sourceMode === "folder" && !trimmedDirectory) {
-      setStatus("error")
-      setError("Enter the Karatsuba dataset folder or choose input files.")
-      return
+      resetOutput()
+      setDirectoryError("Enter the Karatsuba dataset folder before running the batch.")
+      return "directory"
     }
     if (sourceMode === "files" && files.length === 0) {
       setStatus("error")
       setError("Choose at least one multiplication input file.")
-      return
+      return null
     }
 
     const currentRequest = ++requestId.current
     const initialFileNames =
       sourceMode === "folder"
         ? multiplicationDatasets.map((row) => `${row.file}.txt`)
-        : files.map((file) => file.name)
+        : files.map(fileNameFromPath)
 
     setStatus("running")
     setError(null)
+    setDirectoryError(null)
     setResult({
       source: sourceMode === "folder" ? trimmedDirectory : "Selected files",
       files: initialFileNames.map((fileName) => ({
@@ -142,7 +147,7 @@ export function useMultiplicationWorkflow(defaultDirectory?: string) {
         },
         handleProgress,
       )
-      if (currentRequest !== requestId.current) return
+      if (currentRequest !== requestId.current) return null
       setResult({
         ...nextResult,
         files: nextResult.files.map((file) => ({
@@ -152,7 +157,7 @@ export function useMultiplicationWorkflow(defaultDirectory?: string) {
       })
       setStatus("success")
     } catch (reason) {
-      if (currentRequest !== requestId.current) return
+      if (currentRequest !== requestId.current) return null
       setResult(null)
       setError(
         reason instanceof Error
@@ -163,6 +168,7 @@ export function useMultiplicationWorkflow(defaultDirectory?: string) {
       )
       setStatus("error")
     }
+    return null
   }
 
   const canRun = sourceMode === "folder" ? directory.trim().length > 0 : files.length > 0
@@ -174,6 +180,7 @@ export function useMultiplicationWorkflow(defaultDirectory?: string) {
     status,
     result,
     error,
+    directoryError,
     canRun,
     selectSourceMode,
     updateDirectory,

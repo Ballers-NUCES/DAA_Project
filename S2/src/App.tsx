@@ -17,7 +17,7 @@ function App() {
   const karatsuba = useMultiplicationWorkflow(generator.result?.karatsubaDirectory)
 
   return (
-    <div className="flex h-svh flex-col bg-background text-foreground">
+    <div className="relative flex h-svh flex-col overflow-hidden bg-background text-foreground">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:ring-3 focus:ring-ring"

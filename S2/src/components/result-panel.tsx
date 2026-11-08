@@ -28,7 +28,11 @@ export function ResultPanel({
   children,
 }: ResultPanelProps) {
   return (
-    <>
+    <section
+      className="relative"
+      aria-label="Execution Results"
+      aria-busy={status === "running"}
+    >
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {status === "running"
           ? `${runningTitle}. ${runningDescription}`
@@ -36,45 +40,43 @@ export function ResultPanel({
             ? "Execution completed. Results are available below."
             : ""}
       </p>
-      <section aria-label="Execution Results" aria-busy={status === "running"}>
-        {status === "idle" && (
-          <Empty className="border bg-muted/20 py-8">
+      {status === "idle" && (
+        <Empty className="border bg-muted/20 py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <PlayIcon className="size-4" aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>Ready to Run</EmptyTitle>
+            <EmptyDescription>{idleDescription}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
+
+      {status === "running" && (
+        children ? (
+          <div>{children}</div>
+        ) : (
+          <Empty className="border border-primary/20 bg-muted/20 py-8">
             <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <PlayIcon className="size-4" aria-hidden="true" />
+              <EmptyMedia variant="icon" className="bg-secondary text-secondary-foreground">
+                <Clock3Icon className="size-4" aria-hidden="true" />
               </EmptyMedia>
-              <EmptyTitle>Ready to Run</EmptyTitle>
-              <EmptyDescription>{idleDescription}</EmptyDescription>
+              <EmptyTitle>{runningTitle}</EmptyTitle>
+              <EmptyDescription>{runningDescription}</EmptyDescription>
             </EmptyHeader>
           </Empty>
-        )}
+        )
+      )}
 
-        {status === "running" && (
-          children ? (
-            <div>{children}</div>
-          ) : (
-            <Empty className="border border-primary/20 bg-muted/20 py-8">
-              <EmptyHeader>
-                <EmptyMedia variant="icon" className="bg-secondary text-secondary-foreground">
-                  <Clock3Icon className="size-4" aria-hidden="true" />
-                </EmptyMedia>
-                <EmptyTitle>{runningTitle}</EmptyTitle>
-                <EmptyDescription>{runningDescription}</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          )
-        )}
+      {status === "error" && (
+        <Alert variant="destructive">
+          <CircleAlertIcon className="size-4" aria-hidden="true" />
+          <AlertTitle>Unable to Complete the Operation</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        {status === "error" && (
-          <Alert variant="destructive">
-            <CircleAlertIcon className="size-4" aria-hidden="true" />
-            <AlertTitle>Unable to Complete the Operation</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {status === "success" && <div>{children}</div>}
-      </section>
-    </>
+      {status === "success" && <div>{children}</div>}
+    </section>
   )
 }

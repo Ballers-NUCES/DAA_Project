@@ -2,10 +2,13 @@ mod generator;
 mod karatsuba;
 
 use generator::GenerationResult;
-use karatsuba::{DecimalInput, KaratsubaProgressEvent, MultiplicationBatchResult};
+use karatsuba::{KaratsubaProgressEvent, MultiplicationBatchResult};
+use specta_typescript::Typescript;
 use tauri::ipc::Channel;
+use tauri_specta::{Builder, collect_commands};
 
 #[tauri::command]
+#[specta::specta]
 async fn run_karatsuba_folder(
     directory: String,
     on_progress: Channel<KaratsubaProgressEvent>,
@@ -20,12 +23,13 @@ async fn run_karatsuba_folder(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn run_karatsuba_files(
-    inputs: Vec<DecimalInput>,
+    paths: Vec<String>,
     on_progress: Channel<KaratsubaProgressEvent>,
 ) -> Result<MultiplicationBatchResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        karatsuba::multiply_files_with_progress(inputs, |event| {
+        karatsuba::multiply_files_with_progress(paths, |event| {
             let _ = on_progress.send(event);
         })
     })
@@ -34,6 +38,7 @@ async fn run_karatsuba_files(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn generate_datasets(
     output_directory: String,
     seed: String,
@@ -45,16 +50,45 @@ async fn generate_datasets(
     .map_err(|error| format!("The dataset generation task could not complete: {error}"))?
 }
 
+fn specta_builder() -> Builder<tauri::Wry> {
+    Builder::<tauri::Wry>::new()
+        .commands(collect_commands![
+            run_karatsuba_folder,
+            run_karatsuba_files,
+            generate_datasets,
+        ])
+        .dangerously_cast_bigints_to_number()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let builder = specta_builder();
+
+    #[cfg(debug_assertions)]
+    builder
+        .export(Typescript::default(), "../src/bindings.ts")
+        .expect("failed to export typescript bindings");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
-            run_karatsuba_folder,
-            run_karatsuba_files,
-            generate_datasets
-        ])
+        .invoke_handler(builder.invoke_handler())
+        .setup(move |app| {
+            builder.mount_events(app);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn export_bindings() {
+        specta_builder()
+            .export(Typescript::default(), "../src/bindings.ts")
+            .expect("failed to export typescript bindings");
+    }
 }

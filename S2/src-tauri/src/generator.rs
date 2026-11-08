@@ -1,5 +1,6 @@
 use rayon::prelude::*;
 use serde::Serialize;
+use specta::Type;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -167,7 +168,7 @@ const MULTIPLICATION_SPECS: [MultiplicationSpec; 10] = [
     },
 ];
 
-#[derive(Serialize)]
+#[derive(Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerationResult {
     pub files_generated: usize,
