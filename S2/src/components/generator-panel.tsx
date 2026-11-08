@@ -226,7 +226,7 @@ export function GeneratorPanel({ workflow }: GeneratorPanelProps) {
                       {result.filesGenerated} Datasets Generated
                     </h3>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      The Karatsuba batch directory has been linked automatically for immediate execution.
+                      Both the Closest-Pair and Karatsuba batch directories have been linked automatically for immediate execution.
                     </p>
                   </div>
                 </div>
