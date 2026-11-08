@@ -13,6 +13,22 @@ const CLOSEST_PAIR_FILES: [&str; 10] = [
 ];
 const MAX_TRACE_POINTS: usize = 101;
 const PARALLEL_THRESHOLD: usize = 16_384;
+const BASE_CASE_LIMIT: usize = 16;
+const TRACE_BASE_CASE_LIMIT: usize = 3;
+const SMALL_SORT_LIMIT: usize = 16;
+const RADIX_BITS: u32 = 11;
+const RADIX_BUCKETS: usize = 1 << RADIX_BITS;
+const RADIX_MASK: u64 = (RADIX_BUCKETS as u64) - 1;
+const RADIX_PASSES: usize = 6;
+
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+enum XSortStrategy {
+    Merge,
+    Radix,
+}
+
+const DEFAULT_X_SORT: XSortStrategy = XSortStrategy::Radix;
 
 #[derive(Clone, Copy, Debug, Serialize, Type)]
 pub struct Point {
@@ -66,12 +82,6 @@ pub struct ClosestPairBatchResult {
 }
 
 #[derive(Clone, Copy)]
-struct RankedPoint {
-    point: Point,
-    x_rank: usize,
-}
-
-#[derive(Clone, Copy)]
 struct Candidate {
     first: Point,
     second: Point,
@@ -79,6 +89,7 @@ struct Candidate {
 }
 
 impl Candidate {
+    #[inline(always)]
     fn new(first: Point, second: Point) -> Self {
         Self {
             first,
@@ -87,8 +98,6 @@ impl Candidate {
         }
     }
 }
-
-type Comparator<T> = fn(&T, &T) -> Ordering;
 
 pub fn run_input(input: &str) -> Result<ClosestPairResult, String> {
     let points = parse_points(input)?;
@@ -288,143 +297,393 @@ fn parse_points(input: &str) -> Result<Vec<Point>, String> {
     Ok(points)
 }
 
+#[inline(always)]
 fn distance_squared(first: Point, second: Point) -> f64 {
     let dx = first.x - second.x;
     let dy = first.y - second.y;
     dx * dx + dy * dy
 }
 
-fn compare_x(first: &RankedPoint, second: &RankedPoint) -> Ordering {
-    first
-        .point
-        .x
-        .total_cmp(&second.point.x)
-        .then_with(|| first.point.y.total_cmp(&second.point.y))
+#[inline(always)]
+fn less_or_equal_x(first: Point, second: Point) -> bool {
+    match first.x.total_cmp(&second.x) {
+        Ordering::Less => true,
+        Ordering::Greater => false,
+        Ordering::Equal => first.y.total_cmp(&second.y) != Ordering::Greater,
+    }
 }
 
-fn compare_y(first: &RankedPoint, second: &RankedPoint) -> Ordering {
-    first
-        .point
-        .y
-        .total_cmp(&second.point.y)
-        .then_with(|| first.x_rank.cmp(&second.x_rank))
+#[inline(always)]
+fn less_or_equal_y(first: Point, second: Point) -> bool {
+    first.y.total_cmp(&second.y) != Ordering::Greater
 }
 
-fn merge_runs<T: Copy>(values: &mut [T], scratch: &mut [T], compare: Comparator<T>) {
-    if values.len() < 2 {
+#[inline(always)]
+fn insertion_sort_x(points: &mut [Point]) {
+    for index in 1..points.len() {
+        let current = points[index];
+        let mut cursor = index;
+        while cursor > 0 && !less_or_equal_x(points[cursor - 1], current) {
+            points[cursor] = points[cursor - 1];
+            cursor -= 1;
+        }
+        points[cursor] = current;
+    }
+}
+
+#[inline(always)]
+fn insertion_sort_y(points: &mut [Point]) {
+    for index in 1..points.len() {
+        let current = points[index];
+        let mut cursor = index;
+        while cursor > 0 && !less_or_equal_y(points[cursor - 1], current) {
+            points[cursor] = points[cursor - 1];
+            cursor -= 1;
+        }
+        points[cursor] = current;
+    }
+}
+
+#[inline(always)]
+fn merge_x_slices(left: &[Point], right: &[Point], dst: &mut [Point]) {
+    debug_assert_eq!(left.len() + right.len(), dst.len());
+    if left.is_empty() {
+        dst.copy_from_slice(right);
         return;
     }
-    let middle = values.len() / 2;
-    let (left, right) = values.split_at(middle);
-    let (mut left_index, mut right_index, mut output_index) = (0, 0, 0);
+    if right.is_empty() {
+        dst.copy_from_slice(left);
+        return;
+    }
+    if less_or_equal_x(left[left.len() - 1], right[0]) {
+        let (dst_left, dst_right) = dst.split_at_mut(left.len());
+        dst_left.copy_from_slice(left);
+        dst_right.copy_from_slice(right);
+        return;
+    }
 
+    let (mut left_index, mut right_index, mut output_index) = (0, 0, 0);
     while left_index < left.len() && right_index < right.len() {
-        if compare(&left[left_index], &right[right_index]) != Ordering::Greater {
-            scratch[output_index] = left[left_index];
-            left_index += 1;
-        } else {
-            scratch[output_index] = right[right_index];
-            right_index += 1;
-        }
+        let left_point = left[left_index];
+        let right_point = right[right_index];
+        let take_left = less_or_equal_x(left_point, right_point);
+        dst[output_index] = if take_left { left_point } else { right_point };
+        left_index += usize::from(take_left);
+        right_index += usize::from(!take_left);
         output_index += 1;
     }
-    while left_index < left.len() {
-        scratch[output_index] = left[left_index];
-        left_index += 1;
-        output_index += 1;
+    if left_index < left.len() {
+        dst[output_index..].copy_from_slice(&left[left_index..]);
+    } else if right_index < right.len() {
+        dst[output_index..].copy_from_slice(&right[right_index..]);
     }
-    while right_index < right.len() {
-        scratch[output_index] = right[right_index];
-        right_index += 1;
-        output_index += 1;
-    }
-    values.copy_from_slice(scratch);
 }
 
-fn merge_sort<T: Copy + Send>(
-    values: &mut [T],
-    scratch: &mut [T],
-    compare: Comparator<T>,
+/// Ping-pong merge sort by x.
+/// When `into_scratch` is false, `points` ends up sorted in `points`.
+/// When `into_scratch` is true, `points` ends up sorted in `scratch`.
+fn merge_sort_x_ping_pong(
+    points: &mut [Point],
+    scratch: &mut [Point],
+    into_scratch: bool,
     parallel_threshold: usize,
 ) {
-    let count = values.len();
-    if count < 2 {
+    let count = points.len();
+    debug_assert_eq!(count, scratch.len());
+    if count <= SMALL_SORT_LIMIT {
+        insertion_sort_x(points);
+        if into_scratch {
+            scratch.copy_from_slice(points);
+        }
         return;
     }
+
     let middle = count / 2;
-    let (left_values, right_values) = values.split_at_mut(middle);
+    let (left_points, right_points) = points.split_at_mut(middle);
     let (left_scratch, right_scratch) = scratch.split_at_mut(middle);
     if count >= parallel_threshold {
         join(
-            || merge_sort(left_values, left_scratch, compare, parallel_threshold),
-            || merge_sort(right_values, right_scratch, compare, parallel_threshold),
+            || merge_sort_x_ping_pong(left_points, left_scratch, !into_scratch, parallel_threshold),
+            || {
+                merge_sort_x_ping_pong(
+                    right_points,
+                    right_scratch,
+                    !into_scratch,
+                    parallel_threshold,
+                )
+            },
         );
     } else {
-        merge_sort(left_values, left_scratch, compare, parallel_threshold);
-        merge_sort(right_values, right_scratch, compare, parallel_threshold);
+        merge_sort_x_ping_pong(left_points, left_scratch, !into_scratch, parallel_threshold);
+        merge_sort_x_ping_pong(
+            right_points,
+            right_scratch,
+            !into_scratch,
+            parallel_threshold,
+        );
     }
-    merge_runs(values, scratch, compare);
+
+    if into_scratch {
+        merge_x_slices(left_points, right_points, scratch);
+    } else {
+        merge_x_slices(left_scratch, right_scratch, points);
+    }
+}
+
+pub(crate) fn merge_sort_by_x(
+    points: &mut [Point],
+    scratch: &mut [Point],
+    parallel_threshold: usize,
+) {
+    merge_sort_x_ping_pong(points, scratch, false, parallel_threshold);
+}
+
+#[inline(always)]
+fn sortable_f64_key(value: f64) -> u64 {
+    // Canonicalize -0.0 and +0.0 so equal x coordinates map to the same key.
+    let canonical = if value == 0.0 { 0.0 } else { value };
+    let bits = canonical.to_bits();
+    let mask = ((bits as i64) >> 63) as u64 | (1_u64 << 63);
+    bits ^ mask
+}
+
+#[allow(dead_code)]
+pub(crate) fn radix_sort_by_x(points: &mut [Point], scratch: &mut [Point]) {
+    let count = points.len();
+    debug_assert_eq!(count, scratch.len());
+    if count <= SMALL_SORT_LIMIT {
+        insertion_sort_x(points);
+        return;
+    }
+
+    let mut counts = [[0_u32; RADIX_BUCKETS]; RADIX_PASSES];
+    let mut already_sorted = true;
+    let mut previous_key = 0_u64;
+
+    for (index, point) in points.iter().enumerate() {
+        let key = sortable_f64_key(point.x);
+        if index > 0 && key < previous_key {
+            already_sorted = false;
+        }
+        previous_key = key;
+
+        counts[0][(key & RADIX_MASK) as usize] += 1;
+        counts[1][((key >> 11) & RADIX_MASK) as usize] += 1;
+        counts[2][((key >> 22) & RADIX_MASK) as usize] += 1;
+        counts[3][((key >> 33) & RADIX_MASK) as usize] += 1;
+        counts[4][((key >> 44) & RADIX_MASK) as usize] += 1;
+        counts[5][(key >> 55) as usize] += 1;
+    }
+
+    if already_sorted {
+        return;
+    }
+
+    let mut in_scratch = false;
+    for (pass, pass_counts) in counts.iter_mut().enumerate() {
+        let shift = (pass as u32) * RADIX_BITS;
+        let active_buckets = if pass == RADIX_PASSES - 1 {
+            1 << (64 - (RADIX_PASSES as u32 - 1) * RADIX_BITS)
+        } else {
+            RADIX_BUCKETS
+        };
+
+        // Skip pass if every point has the exact same 11-bit digit in this position.
+        if pass_counts[..active_buckets]
+            .iter()
+            .any(|&bucket_count| bucket_count as usize == count)
+        {
+            continue;
+        }
+
+        let mut offset = 0_u32;
+        for bucket in &mut pass_counts[..active_buckets] {
+            let current = *bucket;
+            *bucket = offset;
+            offset += current;
+        }
+
+        if !in_scratch {
+            for &point in points.iter() {
+                let digit = ((sortable_f64_key(point.x) >> shift) & RADIX_MASK) as usize;
+                let destination = pass_counts[digit] as usize;
+                pass_counts[digit] += 1;
+                scratch[destination] = point;
+            }
+        } else {
+            for &point in scratch.iter() {
+                let digit = ((sortable_f64_key(point.x) >> shift) & RADIX_MASK) as usize;
+                let destination = pass_counts[digit] as usize;
+                pass_counts[digit] += 1;
+                points[destination] = point;
+            }
+        }
+        in_scratch = !in_scratch;
+    }
+
+    if in_scratch {
+        points.copy_from_slice(scratch);
+    }
+}
+
+/// Copies the left half `points[..middle]` into `left_copy`, merges it with
+/// `points[middle..]` by y back into `points`, and collects strip candidates
+/// (`(p.x - split_x)^2 < best_distance_squared`) into `strip`.
+#[inline(always)]
+fn merge_y_and_build_strip(
+    points: &mut [Point],
+    middle: usize,
+    left_copy: &mut [Point],
+    strip: &mut Vec<Point>,
+    split_x: f64,
+    best_distance_squared: f64,
+) {
+    strip.clear();
+    if !less_or_equal_y(points[middle - 1], points[middle]) {
+        left_copy.copy_from_slice(&points[..middle]);
+        let right_len = points.len() - middle;
+        let (mut left_index, mut right_index, mut output_index) = (0, 0, 0);
+
+        while left_index < middle && right_index < right_len {
+            let left_point = left_copy[left_index];
+            let right_point = points[middle + right_index];
+            let take_left = less_or_equal_y(left_point, right_point);
+            let chosen = if take_left { left_point } else { right_point };
+            points[output_index] = chosen;
+            left_index += usize::from(take_left);
+            right_index += usize::from(!take_left);
+            output_index += 1;
+
+            let dx = chosen.x - split_x;
+            if dx * dx < best_distance_squared {
+                strip.push(chosen);
+            }
+        }
+
+        while left_index < middle {
+            let chosen = left_copy[left_index];
+            points[output_index] = chosen;
+            left_index += 1;
+            output_index += 1;
+
+            let dx = chosen.x - split_x;
+            if dx * dx < best_distance_squared {
+                strip.push(chosen);
+            }
+        }
+
+        while right_index < right_len {
+            let chosen = points[middle + right_index];
+            right_index += 1;
+            output_index += 1;
+
+            let dx = chosen.x - split_x;
+            if dx * dx < best_distance_squared {
+                strip.push(chosen);
+            }
+        }
+        debug_assert_eq!(output_index, points.len());
+    } else {
+        for &point in points.iter() {
+            let dx = point.x - split_x;
+            if dx * dx < best_distance_squared {
+                strip.push(point);
+            }
+        }
+    }
+}
+
+#[inline(always)]
+fn check_strip(strip: &[Point], mut best: Candidate) -> Candidate {
+    for index in 0..strip.len() {
+        let first = strip[index];
+        let mut next = index + 1;
+        while next < strip.len() {
+            let second = strip[next];
+            let dy = second.y - first.y;
+            if dy * dy >= best.distance_squared {
+                break;
+            }
+            let dx = first.x - second.x;
+            let distance_squared = dx * dx + dy * dy;
+            if distance_squared < best.distance_squared {
+                best = Candidate {
+                    first,
+                    second,
+                    distance_squared,
+                };
+            }
+            next += 1;
+        }
+    }
+    best
 }
 
 fn find_closest(points: &[Point], trace: &mut TraceRecorder) -> Candidate {
-    find_closest_with_threshold(points, trace, PARALLEL_THRESHOLD)
+    find_closest_with_options(points, trace, PARALLEL_THRESHOLD, DEFAULT_X_SORT)
 }
 
-fn find_closest_with_threshold(
+fn find_closest_with_options(
     points: &[Point],
     trace: &mut TraceRecorder,
     parallel_threshold: usize,
+    sort_strategy: XSortStrategy,
 ) -> Candidate {
     let sort_threshold = if trace.is_enabled() {
         usize::MAX
     } else {
         parallel_threshold
     };
-    let mut px: Vec<RankedPoint> = points
-        .iter()
-        .map(|&point| RankedPoint { point, x_rank: 0 })
-        .collect();
-    let mut scratch = px.clone();
-    merge_sort(&mut px, &mut scratch, compare_x, sort_threshold);
-    for (rank, point) in px.iter_mut().enumerate() {
-        point.x_rank = rank;
+    let mut sorted_points = points.to_vec();
+    let mut scratch = vec![Point { x: 0.0, y: 0.0 }; points.len()];
+
+    match sort_strategy {
+        XSortStrategy::Merge => {
+            merge_sort_by_x(&mut sorted_points, &mut scratch, sort_threshold);
+        }
+        XSortStrategy::Radix => {
+            radix_sort_by_x(&mut sorted_points, &mut scratch);
+        }
     }
 
-    let mut py = px.clone();
-    merge_sort(&mut py, &mut scratch, compare_y, sort_threshold);
-    let mut strip = Vec::new();
+    let base_case_limit = if trace.is_enabled() {
+        TRACE_BASE_CASE_LIMIT
+    } else {
+        BASE_CASE_LIMIT
+    };
+    let mut strip = Vec::with_capacity(64);
+
     solve(
-        &px,
-        &mut py,
+        &mut sorted_points,
         &mut scratch,
         &mut strip,
         0,
         parallel_threshold,
+        base_case_limit,
         trace,
     )
 }
 
 fn solve(
-    px: &[RankedPoint],
-    py: &mut [RankedPoint],
-    scratch: &mut [RankedPoint],
-    strip: &mut Vec<RankedPoint>,
+    points: &mut [Point],
+    scratch: &mut [Point],
+    strip: &mut Vec<Point>,
     depth: usize,
     parallel_threshold: usize,
+    base_case_limit: usize,
     trace: &mut TraceRecorder,
 ) -> Candidate {
-    let count = px.len();
+    let count = points.len();
     debug_assert!(count >= 2);
-    debug_assert_eq!(count, py.len());
     debug_assert_eq!(count, scratch.len());
 
-    if count <= 3 {
-        return brute_force(px, depth, trace);
+    if count <= base_case_limit {
+        return solve_base_case(points, depth, trace);
     }
 
     let middle = count / 2;
-    let split_rank = px[middle].x_rank;
-    let split_x = px[middle - 1].point.x;
+    // Read split_x BEFORE recursing, as the recursive calls reorder both halves by y.
+    let split_x = points[middle - 1].x;
     if trace.is_active() {
         trace.push(
             depth,
@@ -436,48 +695,33 @@ fn solve(
         );
     }
 
-    let (mut left_count, mut right_count) = (0, middle);
-    for &point in py.iter() {
-        if point.x_rank < split_rank {
-            scratch[left_count] = point;
-            left_count += 1;
-        } else {
-            scratch[right_count] = point;
-            right_count += 1;
-        }
-    }
-    debug_assert_eq!(left_count, middle);
-    debug_assert_eq!(right_count, count);
-    py.copy_from_slice(scratch);
-
-    let (left_px, right_px) = px.split_at(middle);
-    let (left_py, right_py) = py.split_at_mut(middle);
+    let (left_points, right_points) = points.split_at_mut(middle);
     let (left_scratch, right_scratch) = scratch.split_at_mut(middle);
     let (left, right) = if count >= parallel_threshold && !trace.is_enabled() {
-        let mut left_strip = Vec::new();
-        let mut right_strip = Vec::new();
+        let mut left_strip = Vec::with_capacity(64);
+        let mut right_strip = Vec::with_capacity(64);
         let mut left_trace = TraceRecorder::disabled();
         let mut right_trace = TraceRecorder::disabled();
         join(
             || {
                 solve(
-                    left_px,
-                    left_py,
+                    left_points,
                     left_scratch,
                     &mut left_strip,
                     depth + 1,
                     parallel_threshold,
+                    base_case_limit,
                     &mut left_trace,
                 )
             },
             || {
                 solve(
-                    right_px,
-                    right_py,
+                    right_points,
                     right_scratch,
                     &mut right_strip,
                     depth + 1,
                     parallel_threshold,
+                    base_case_limit,
                     &mut right_trace,
                 )
             },
@@ -485,21 +729,21 @@ fn solve(
     } else {
         (
             solve(
-                left_px,
-                left_py,
+                left_points,
                 left_scratch,
                 strip,
                 depth + 1,
                 parallel_threshold,
+                base_case_limit,
                 &mut *trace,
             ),
             solve(
-                right_px,
-                right_py,
+                right_points,
                 right_scratch,
                 strip,
                 depth + 1,
                 parallel_threshold,
+                base_case_limit,
                 trace,
             ),
         )
@@ -523,27 +767,15 @@ fn solve(
         );
     }
 
-    merge_runs(py, scratch, compare_y);
-    strip.clear();
-    strip.extend(py.iter().copied().filter(|point| {
-        let dx = point.point.x - split_x;
-        dx * dx < best.distance_squared
-    }));
-
-    for index in 0..strip.len() {
-        let mut next = index + 1;
-        while next < strip.len() {
-            let dy = strip[next].point.y - strip[index].point.y;
-            if dy * dy >= best.distance_squared {
-                break;
-            }
-            let candidate = Candidate::new(strip[index].point, strip[next].point);
-            if candidate.distance_squared < best.distance_squared {
-                best = candidate;
-            }
-            next += 1;
-        }
-    }
+    merge_y_and_build_strip(
+        points,
+        middle,
+        &mut scratch[..middle],
+        strip,
+        split_x,
+        best.distance_squared,
+    );
+    best = check_strip(strip, best);
 
     if trace.is_active() {
         trace.push(
@@ -563,13 +795,25 @@ fn solve(
     best
 }
 
-fn brute_force(points: &[RankedPoint], depth: usize, trace: &mut TraceRecorder) -> Candidate {
-    let mut best = Candidate::new(points[0].point, points[1].point);
-    for first in 0..points.len() {
-        for second in first + 1..points.len() {
-            let candidate = Candidate::new(points[first].point, points[second].point);
-            if candidate.distance_squared < best.distance_squared {
-                best = candidate;
+fn solve_base_case(points: &mut [Point], depth: usize, trace: &mut TraceRecorder) -> Candidate {
+    insertion_sort_y(points);
+    let mut best = Candidate::new(points[0], points[1]);
+    for first_index in 0..points.len() {
+        let first = points[first_index];
+        for second_index in first_index + 1..points.len() {
+            let second = points[second_index];
+            let dy = second.y - first.y;
+            if dy * dy >= best.distance_squared {
+                break;
+            }
+            let dx = first.x - second.x;
+            let distance_squared = dx * dx + dy * dy;
+            if distance_squared < best.distance_squared {
+                best = Candidate {
+                    first,
+                    second,
+                    distance_squared,
+                };
             }
         }
     }
@@ -606,10 +850,22 @@ mod tests {
     }
 
     fn assert_matches_naive(points: &[Point], parallel_threshold: usize) {
-        let candidate =
-            find_closest_with_threshold(points, &mut TraceRecorder::disabled(), parallel_threshold);
         let expected = naive_distance_squared(points);
-        assert!((candidate.distance_squared - expected).abs() < 1e-9);
+        let merge_candidate = find_closest_with_options(
+            points,
+            &mut TraceRecorder::disabled(),
+            parallel_threshold,
+            XSortStrategy::Merge,
+        );
+        assert!((merge_candidate.distance_squared - expected).abs() < 1e-9);
+
+        let radix_candidate = find_closest_with_options(
+            points,
+            &mut TraceRecorder::disabled(),
+            parallel_threshold,
+            XSortStrategy::Radix,
+        );
+        assert!((radix_candidate.distance_squared - expected).abs() < 1e-9);
     }
 
     fn deterministic_points(count: usize) -> Vec<Point> {
@@ -679,6 +935,36 @@ mod tests {
         let points = deterministic_points(257);
         assert_matches_naive(&points, usize::MAX);
         assert_matches_naive(&points, 16);
+    }
+
+    #[test]
+    fn matches_brute_force_across_sizes_and_signed_zero_edges() {
+        let signed_zero_cases = [
+            vec![point(-0.0, 1.0), point(0.0, 1.5), point(10.0, 20.0)],
+            vec![
+                point(-0.0, -0.0),
+                point(0.0, 0.0),
+                point(-5.0, -5.0),
+                point(5.0, 5.0),
+            ],
+            vec![
+                point(-100.5, -200.25),
+                point(-0.0, 3.0),
+                point(0.0, -3.0),
+                point(-0.0, 3.125),
+                point(42.0, -17.0),
+            ],
+        ];
+        for points in signed_zero_cases {
+            assert_matches_naive(&points, usize::MAX);
+            assert_matches_naive(&points, 2);
+        }
+
+        for count in (2..=64).chain([65, 100, 101, 127, 128, 129, 255, 256, 384, 513, 600]) {
+            let points = deterministic_points(count);
+            assert_matches_naive(&points, usize::MAX);
+            assert_matches_naive(&points, 32);
+        }
     }
 
     #[test]
