@@ -8,6 +8,7 @@ import type {
   MultiplicationFileResult,
   MultiplicationResult,
   Point,
+  XSortStrategy,
 } from "@/bindings"
 
 export type {
@@ -20,6 +21,7 @@ export type {
   MultiplicationFileResult,
   MultiplicationResult,
   Point,
+  XSortStrategy,
 }
 
 export type WorkflowStatus = "idle" | "running" | "success" | "error"

@@ -48,6 +48,7 @@ interface AlgorithmPanelProps<T extends AlgorithmResult> {
   datasetDescription: string
   folderLabel: string
   folderDescription: ReactNode
+  extraControls?: ReactNode
   runningTitle: string
   runningFolderDescription: string
   batchRunningTitle: string
@@ -71,6 +72,7 @@ export function AlgorithmPanel<T extends AlgorithmResult>({
   datasetDescription,
   folderLabel,
   folderDescription,
+  extraControls,
   runningTitle,
   runningFolderDescription,
   batchRunningTitle,
@@ -141,35 +143,49 @@ export function AlgorithmPanel<T extends AlgorithmResult>({
               })
             }}
           >
-            <Field>
-              <FieldTitle id={`${id}-source-label`}>Input Source</FieldTitle>
-              <ToggleGroup
-                value={[sourceMode]}
-                onValueChange={(values) => {
-                  const next = values[0] as AlgorithmSourceMode | undefined
-                  if (next) selectSourceMode(next)
-                }}
-                aria-labelledby={`${id}-source-label`}
-                className="grid w-full grid-cols-2 rounded-xl border bg-muted/40 p-1 sm:max-w-md"
-              >
-                <ToggleGroupItem
-                  value="folder"
-                  disabled={running}
-                  className="h-9 gap-2 rounded-lg data-pressed:bg-background data-pressed:text-foreground data-pressed:shadow-xs"
+            <div
+              className={
+                extraControls
+                  ? "grid gap-4 sm:grid-cols-2 sm:items-start"
+                  : undefined
+              }
+            >
+              <Field>
+                <FieldTitle id={`${id}-source-label`}>Input Source</FieldTitle>
+                <ToggleGroup
+                  value={[sourceMode]}
+                  onValueChange={(values) => {
+                    const next = values[0] as AlgorithmSourceMode | undefined
+                    if (next) selectSourceMode(next)
+                  }}
+                  aria-labelledby={`${id}-source-label`}
+                  className={
+                    extraControls
+                      ? "grid w-full grid-cols-2 rounded-xl border bg-muted/40 p-1"
+                      : "grid w-full grid-cols-2 rounded-xl border bg-muted/40 p-1 sm:max-w-md"
+                  }
                 >
-                  <FolderOpenIcon aria-hidden="true" />
-                  Generated Folder
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  value="files"
-                  disabled={running}
-                  className="h-9 gap-2 rounded-lg data-pressed:bg-background data-pressed:text-foreground data-pressed:shadow-xs"
-                >
-                  <FilesIcon aria-hidden="true" />
-                  Choose Files
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </Field>
+                  <ToggleGroupItem
+                    value="folder"
+                    disabled={running}
+                    className="h-9 gap-2 rounded-lg data-pressed:bg-background data-pressed:text-foreground data-pressed:shadow-xs"
+                  >
+                    <FolderOpenIcon aria-hidden="true" />
+                    Generated Folder
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value="files"
+                    disabled={running}
+                    className="h-9 gap-2 rounded-lg data-pressed:bg-background data-pressed:text-foreground data-pressed:shadow-xs"
+                  >
+                    <FilesIcon aria-hidden="true" />
+                    Choose Files
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </Field>
+
+              {extraControls}
+            </div>
 
             {sourceMode === "folder" ? (
               <Field data-invalid={directoryError ? true : undefined}>

@@ -3,7 +3,7 @@ mod generator;
 mod karatsuba;
 mod model;
 
-use closest_pair::{ClosestPairBatchResult, ClosestPairProgressEvent};
+use closest_pair::{ClosestPairBatchResult, ClosestPairProgressEvent, XSortStrategy};
 use generator::GenerationResult;
 use karatsuba::{KaratsubaProgressEvent, MultiplicationBatchResult};
 use specta_typescript::Typescript;
@@ -14,10 +14,11 @@ use tauri_specta::{Builder, collect_commands};
 #[specta::specta]
 async fn run_closest_pair_folder(
     directory: String,
+    sort_strategy: XSortStrategy,
     on_progress: Channel<ClosestPairProgressEvent>,
 ) -> Result<ClosestPairBatchResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        closest_pair::run_folder_with_progress(&directory, |event| {
+        closest_pair::run_folder_with_progress(&directory, sort_strategy, |event| {
             let _ = on_progress.send(event);
         })
     })
@@ -29,10 +30,11 @@ async fn run_closest_pair_folder(
 #[specta::specta]
 async fn run_closest_pair_files(
     paths: Vec<String>,
+    sort_strategy: XSortStrategy,
     on_progress: Channel<ClosestPairProgressEvent>,
 ) -> Result<ClosestPairBatchResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        closest_pair::run_files_with_progress(paths, |event| {
+        closest_pair::run_files_with_progress(paths, sort_strategy, |event| {
             let _ = on_progress.send(event);
         })
     })

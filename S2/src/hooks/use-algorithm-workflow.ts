@@ -35,6 +35,7 @@ export interface AlgorithmWorkflow<T extends AlgorithmResult> {
   selectSourceMode: (mode: AlgorithmSourceMode) => void
   updateDirectory: (value: string) => void
   selectFiles: (files: string[]) => void
+  clearResult: () => void
   run: () => Promise<"directory" | null>
 }
 
@@ -215,6 +216,7 @@ export function useAlgorithmWorkflow<T extends AlgorithmResult>({
     selectSourceMode,
     updateDirectory,
     selectFiles,
+    clearResult: resetOutput,
     run,
   }
 }

@@ -8,6 +8,7 @@ import type {
   GenerationResult,
   KaratsubaProgressEvent,
   MultiplicationBatchResult,
+  XSortStrategy,
 } from "@/types/workflow"
 
 type CommandResult<T> = { status: "ok"; data: T } | { status: "error"; error: string }
@@ -20,6 +21,7 @@ function unwrapCommand<T>(result: CommandResult<T>): T {
 /** Frontend boundary for the Tauri commands. */
 export async function runClosestPair(
   source: AlgorithmBatchSource,
+  sortStrategy: XSortStrategy = "radix",
   onProgress?: (event: ClosestPairProgressEvent) => void,
 ): Promise<ClosestPairBatchResult> {
   const progressChannel = new Channel<ClosestPairProgressEvent>()
@@ -29,8 +31,8 @@ export async function runClosestPair(
 
   const result =
     source.mode === "folder"
-      ? await commands.runClosestPairFolder(source.directory, progressChannel)
-      : await commands.runClosestPairFiles(source.files, progressChannel)
+      ? await commands.runClosestPairFolder(source.directory, sortStrategy, progressChannel)
+      : await commands.runClosestPairFiles(source.files, sortStrategy, progressChannel)
   return unwrapCommand(result)
 }
 

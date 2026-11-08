@@ -4,8 +4,8 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	runClosestPairFolder: (directory: string, onProgress: Channel<ClosestPairProgressEvent_Deserialize>) => typedError<ClosestPairBatchResult_Serialize, string>(__TAURI_INVOKE("run_closest_pair_folder", { directory, onProgress })),
-	runClosestPairFiles: (paths: string[], onProgress: Channel<ClosestPairProgressEvent_Deserialize>) => typedError<ClosestPairBatchResult_Serialize, string>(__TAURI_INVOKE("run_closest_pair_files", { paths, onProgress })),
+	runClosestPairFolder: (directory: string, sortStrategy: XSortStrategy, onProgress: Channel<ClosestPairProgressEvent_Deserialize>) => typedError<ClosestPairBatchResult_Serialize, string>(__TAURI_INVOKE("run_closest_pair_folder", { directory, sortStrategy, onProgress })),
+	runClosestPairFiles: (paths: string[], sortStrategy: XSortStrategy, onProgress: Channel<ClosestPairProgressEvent_Deserialize>) => typedError<ClosestPairBatchResult_Serialize, string>(__TAURI_INVOKE("run_closest_pair_files", { paths, sortStrategy, onProgress })),
 	runKaratsubaFolder: (directory: string, onProgress: Channel<KaratsubaProgressEvent_Deserialize>) => typedError<MultiplicationBatchResult_Serialize, string>(__TAURI_INVOKE("run_karatsuba_folder", { directory, onProgress })),
 	runKaratsubaFiles: (paths: string[], onProgress: Channel<KaratsubaProgressEvent_Deserialize>) => typedError<MultiplicationBatchResult_Serialize, string>(__TAURI_INVOKE("run_karatsuba_files", { paths, onProgress })),
 	generateDatasets: (outputDirectory: string, seed: string) => typedError<GenerationResult, string>(__TAURI_INVOKE("generate_datasets", { outputDirectory, seed })),
@@ -156,6 +156,8 @@ export type Point = {
 	x: number | null,
 	y: number | null,
 };
+
+export type XSortStrategy = "merge" | "radix";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

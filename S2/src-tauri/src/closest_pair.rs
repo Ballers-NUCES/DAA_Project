@@ -20,13 +20,14 @@ const RADIX_BUCKETS: usize = 1 << RADIX_BITS;
 const RADIX_MASK: u64 = (RADIX_BUCKETS as u64) - 1;
 const RADIX_PASSES: usize = 6;
 
-#[allow(dead_code)]
-#[derive(Clone, Copy)]
-enum XSortStrategy {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum XSortStrategy {
     Merge,
     Radix,
 }
 
+#[cfg(test)]
 const DEFAULT_X_SORT: XSortStrategy = XSortStrategy::Radix;
 
 #[derive(Clone, Copy, Debug, Serialize, Type)]
@@ -98,18 +99,31 @@ impl Candidate {
     }
 }
 
+#[cfg(test)]
 pub fn run_input(input: &str) -> Result<ClosestPairResult, String> {
+    run_input_with_sort(input, DEFAULT_X_SORT)
+}
+
+pub fn run_input_with_sort(
+    input: &str,
+    sort_strategy: XSortStrategy,
+) -> Result<ClosestPairResult, String> {
     let points = parse_points(input)?;
 
     // Parsing and trace construction stay outside the algorithm timer.
     let started = Instant::now();
-    let candidate = find_closest(&points, &mut TraceRecorder::disabled());
+    let candidate = find_closest_with_options(
+        &points,
+        &mut TraceRecorder::disabled(),
+        PARALLEL_THRESHOLD,
+        sort_strategy,
+    );
     let distance = candidate.distance_squared.sqrt();
     let elapsed_micros = started.elapsed().as_micros().min(u64::MAX as u128) as u64;
 
     let trace = if points.len() <= MAX_TRACE_POINTS {
         let mut recorder = TraceRecorder::enabled();
-        let _ = find_closest(&points, &mut recorder);
+        let _ = find_closest_with_options(&points, &mut recorder, PARALLEL_THRESHOLD, sort_strategy);
         Some(recorder.into_steps())
     } else {
         None
@@ -127,11 +141,12 @@ pub fn run_input(input: &str) -> Result<ClosestPairResult, String> {
 
 #[cfg(test)]
 pub fn run_folder(directory: &str) -> Result<ClosestPairBatchResult, String> {
-    run_folder_with_progress(directory, |_| {})
+    run_folder_with_progress(directory, DEFAULT_X_SORT, |_| {})
 }
 
 pub fn run_folder_with_progress(
     directory: &str,
+    sort_strategy: XSortStrategy,
     mut on_progress: impl FnMut(ClosestPairProgressEvent),
 ) -> Result<ClosestPairBatchResult, String> {
     let directory = directory.trim().trim_matches('"').trim_matches('\'').trim();
@@ -156,17 +171,19 @@ pub fn run_folder_with_progress(
     Ok(run_named_files(
         directory.to_owned(),
         inputs,
+        sort_strategy,
         &mut on_progress,
     ))
 }
 
 #[cfg(test)]
 pub fn run_files(paths: Vec<String>) -> Result<ClosestPairBatchResult, String> {
-    run_files_with_progress(paths, |_| {})
+    run_files_with_progress(paths, DEFAULT_X_SORT, |_| {})
 }
 
 pub fn run_files_with_progress(
     paths: Vec<String>,
+    sort_strategy: XSortStrategy,
     mut on_progress: impl FnMut(ClosestPairProgressEvent),
 ) -> Result<ClosestPairBatchResult, String> {
     if paths.is_empty() {
@@ -184,6 +201,7 @@ pub fn run_files_with_progress(
     Ok(run_named_files(
         "Selected files".to_owned(),
         inputs,
+        sort_strategy,
         &mut on_progress,
     ))
 }
@@ -197,6 +215,7 @@ fn read_dataset(path: &Path) -> Result<String, String> {
 fn run_named_files<F>(
     source: String,
     inputs: impl IntoIterator<Item = (String, F)>,
+    sort_strategy: XSortStrategy,
     on_progress: &mut impl FnMut(ClosestPairProgressEvent),
 ) -> ClosestPairBatchResult
 where
@@ -212,7 +231,8 @@ where
             file_name: file_name.clone(),
         });
 
-        let outcome = load_input().and_then(|content| run_input(&content));
+        let outcome =
+            load_input().and_then(|content| run_input_with_sort(&content, sort_strategy));
         let file_result = match outcome {
             Ok(result) => {
                 total_elapsed_micros += u128::from(result.elapsed_micros);
@@ -610,10 +630,6 @@ fn check_strip(strip: &[Point], mut best: Candidate) -> Candidate {
         }
     }
     best
-}
-
-fn find_closest(points: &[Point], trace: &mut TraceRecorder) -> Candidate {
-    find_closest_with_options(points, trace, PARALLEL_THRESHOLD, DEFAULT_X_SORT)
 }
 
 fn find_closest_with_options(
