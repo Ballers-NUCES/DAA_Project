@@ -341,13 +341,28 @@ fn merge_runs<T: Copy>(values: &mut [T], scratch: &mut [T], compare: Comparator<
     values.copy_from_slice(scratch);
 }
 
-fn merge_sort<T: Copy>(values: &mut [T], scratch: &mut [T], compare: Comparator<T>) {
-    if values.len() < 2 {
+fn merge_sort<T: Copy + Send>(
+    values: &mut [T],
+    scratch: &mut [T],
+    compare: Comparator<T>,
+    parallel_threshold: usize,
+) {
+    let count = values.len();
+    if count < 2 {
         return;
     }
-    let middle = values.len() / 2;
-    merge_sort(&mut values[..middle], &mut scratch[..middle], compare);
-    merge_sort(&mut values[middle..], &mut scratch[middle..], compare);
+    let middle = count / 2;
+    let (left_values, right_values) = values.split_at_mut(middle);
+    let (left_scratch, right_scratch) = scratch.split_at_mut(middle);
+    if count >= parallel_threshold {
+        join(
+            || merge_sort(left_values, left_scratch, compare, parallel_threshold),
+            || merge_sort(right_values, right_scratch, compare, parallel_threshold),
+        );
+    } else {
+        merge_sort(left_values, left_scratch, compare, parallel_threshold);
+        merge_sort(right_values, right_scratch, compare, parallel_threshold);
+    }
     merge_runs(values, scratch, compare);
 }
 
@@ -360,19 +375,24 @@ fn find_closest_with_threshold(
     trace: &mut TraceRecorder,
     parallel_threshold: usize,
 ) -> Candidate {
+    let sort_threshold = if trace.is_enabled() {
+        usize::MAX
+    } else {
+        parallel_threshold
+    };
     let mut px: Vec<RankedPoint> = points
         .iter()
         .map(|&point| RankedPoint { point, x_rank: 0 })
         .collect();
     let mut scratch = px.clone();
-    merge_sort(&mut px, &mut scratch, compare_x);
+    merge_sort(&mut px, &mut scratch, compare_x, sort_threshold);
     for (rank, point) in px.iter_mut().enumerate() {
         point.x_rank = rank;
     }
 
     let mut py = px.clone();
-    merge_sort(&mut py, &mut scratch, compare_y);
-    let mut strip = Vec::with_capacity(points.len());
+    merge_sort(&mut py, &mut scratch, compare_y, sort_threshold);
+    let mut strip = Vec::new();
     solve(
         &px,
         &mut py,
@@ -434,8 +454,8 @@ fn solve(
     let (left_py, right_py) = py.split_at_mut(middle);
     let (left_scratch, right_scratch) = scratch.split_at_mut(middle);
     let (left, right) = if count >= parallel_threshold && !trace.is_enabled() {
-        let mut left_strip = Vec::with_capacity(middle);
-        let mut right_strip = Vec::with_capacity(count - middle);
+        let mut left_strip = Vec::new();
+        let mut right_strip = Vec::new();
         let mut left_trace = TraceRecorder::disabled();
         let mut right_trace = TraceRecorder::disabled();
         join(
