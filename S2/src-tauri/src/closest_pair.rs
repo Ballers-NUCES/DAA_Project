@@ -2,7 +2,6 @@ use crate::model::{AlgorithmStep, TraceRecorder};
 use rayon::join;
 use serde::Serialize;
 use specta::Type;
-use std::cmp::Ordering;
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
@@ -306,16 +305,12 @@ fn distance_squared(first: Point, second: Point) -> f64 {
 
 #[inline(always)]
 fn less_or_equal_x(first: Point, second: Point) -> bool {
-    match first.x.total_cmp(&second.x) {
-        Ordering::Less => true,
-        Ordering::Greater => false,
-        Ordering::Equal => first.y.total_cmp(&second.y) != Ordering::Greater,
-    }
+    first.x <= second.x
 }
 
 #[inline(always)]
 fn less_or_equal_y(first: Point, second: Point) -> bool {
-    first.y.total_cmp(&second.y) != Ordering::Greater
+    first.y <= second.y
 }
 
 #[inline(always)]
@@ -467,12 +462,10 @@ pub(crate) fn radix_sort_by_x(points: &mut [Point], scratch: &mut [Point]) {
         }
         previous_key = key;
 
-        counts[0][(key & RADIX_MASK) as usize] += 1;
-        counts[1][((key >> 11) & RADIX_MASK) as usize] += 1;
-        counts[2][((key >> 22) & RADIX_MASK) as usize] += 1;
-        counts[3][((key >> 33) & RADIX_MASK) as usize] += 1;
-        counts[4][((key >> 44) & RADIX_MASK) as usize] += 1;
-        counts[5][(key >> 55) as usize] += 1;
+        for (pass, pass_counts) in counts.iter_mut().enumerate() {
+            let shift = (pass as u32) * RADIX_BITS;
+            pass_counts[((key >> shift) & RADIX_MASK) as usize] += 1;
+        }
     }
 
     if already_sorted {
@@ -965,6 +958,31 @@ mod tests {
             assert_matches_naive(&points, usize::MAX);
             assert_matches_naive(&points, 32);
         }
+    }
+
+    #[test]
+    fn custom_sorts_order_by_x_across_signs_and_scales() {
+        let mut base = vec![
+            point(1e300, 1.0),
+            point(-1e300, 2.0),
+            point(0.0, 3.0),
+            point(-0.0, 4.0),
+            point(-1e-300, 5.0),
+            point(1e-300, 6.0),
+            point(-42.5, 7.0),
+            point(42.5, 8.0),
+        ];
+        base.extend(deterministic_points(150));
+
+        let mut merge_sorted = base.clone();
+        let mut radix_sorted = base.clone();
+        let mut scratch = vec![point(0.0, 0.0); base.len()];
+
+        merge_sort_by_x(&mut merge_sorted, &mut scratch, 32);
+        radix_sort_by_x(&mut radix_sorted, &mut scratch);
+
+        assert!(merge_sorted.windows(2).all(|pair| pair[0].x <= pair[1].x));
+        assert!(radix_sorted.windows(2).all(|pair| pair[0].x <= pair[1].x));
     }
 
     #[test]
