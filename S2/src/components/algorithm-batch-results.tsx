@@ -1,10 +1,11 @@
+import { useId } from "react"
+import type { ReactNode } from "react"
 import {
   CheckCircle2Icon,
   ChevronDownIcon,
   CircleAlertIcon,
   Clock3Icon,
 } from "lucide-react"
-import { MultiplicationResultView } from "@/components/algorithm-results"
 import { formatDuration, ResultMetric } from "@/components/result-metric"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -15,21 +16,25 @@ import {
 } from "@/components/ui/collapsible"
 import { Progress } from "@/components/ui/progress"
 import { Spinner } from "@/components/ui/spinner"
-import type {
-  AlgorithmFileResult,
-  MultiplicationBatchResult,
-  MultiplicationResult,
-} from "@/types/workflow"
+import type { AlgorithmBatchResult, AlgorithmFileResult, AlgorithmResult } from "@/types/workflow"
 
 const numberFormatter = new Intl.NumberFormat()
 
-function MultiplicationFileRecord({
+interface AlgorithmFileRecordProps<T extends AlgorithmResult> {
+  file: AlgorithmFileResult<T>
+  defaultOpen: boolean
+  getFileSubtitle: (result: T) => string
+  hasTrace: (result: T) => boolean
+  renderResult: (result: T) => ReactNode
+}
+
+function AlgorithmFileRecord<T extends AlgorithmResult>({
   file,
   defaultOpen,
-}: {
-  file: AlgorithmFileResult<MultiplicationResult>
-  defaultOpen: boolean
-}) {
+  getFileSubtitle,
+  hasTrace,
+  renderResult,
+}: AlgorithmFileRecordProps<T>) {
   const result = file.result
   const fileStatus = file.status ?? "completed"
   const isRunning = fileStatus === "running"
@@ -45,11 +50,11 @@ function MultiplicationFileRecord({
         : "bg-destructive/10 text-destructive"
 
   const subtitle = isRunning
-    ? "Multiplying operands…"
+    ? "Processing input…"
     : isPending
       ? "Queued in batch"
       : result
-        ? `${numberFormatter.format(result.leftDigits)} × ${numberFormatter.format(result.rightDigits)} digits`
+        ? getFileSubtitle(result)
         : "Open to view the error"
 
   return (
@@ -79,7 +84,7 @@ function MultiplicationFileRecord({
               {isRunning && (
                 <Badge variant="secondary" className="text-[10px]">Running</Badge>
               )}
-              {isCompleted && result?.trace && result.trace.length > 0 && (
+              {isCompleted && result && hasTrace(result) && (
                 <Badge variant="secondary" className="text-[10px]">Trace</Badge>
               )}
               {isCompleted && !result && (
@@ -113,11 +118,11 @@ function MultiplicationFileRecord({
         <CollapsibleContent>
           <div className="border-t px-4 py-5 sm:px-5">
             {result ? (
-              <MultiplicationResultView result={result} showMetrics={false} />
+              renderResult(result)
             ) : (
               <Alert variant="destructive">
                 <CircleAlertIcon className="size-4" aria-hidden="true" />
-                <AlertTitle>{file.fileName} Could Not Be Multiplied</AlertTitle>
+                <AlertTitle>{file.fileName} Could Not Be Processed</AlertTitle>
                 <AlertDescription>{file.error ?? "The file did not produce a result."}</AlertDescription>
               </Alert>
             )}
@@ -128,13 +133,27 @@ function MultiplicationFileRecord({
   )
 }
 
-export function MultiplicationBatchResultView({
+interface AlgorithmBatchResultViewProps<T extends AlgorithmResult> {
+  batch: AlgorithmBatchResult<T>
+  running?: boolean
+  runningTitle: string
+  successTitle: string
+  getFileSubtitle: (result: T) => string
+  hasTrace: (result: T) => boolean
+  renderResult: (result: T) => ReactNode
+}
+
+export function AlgorithmBatchResultView<T extends AlgorithmResult>({
   batch,
   running = false,
-}: {
-  batch: MultiplicationBatchResult
-  running?: boolean
-}) {
+  runningTitle,
+  successTitle,
+  getFileSubtitle,
+  hasTrace,
+  renderResult,
+}: AlgorithmBatchResultViewProps<T>) {
+  const summaryId = useId()
+  const resultsId = useId()
   const allSucceeded = batch.failed === 0
   const completedCount = batch.succeeded + batch.failed
   const progressValue =
@@ -142,7 +161,7 @@ export function MultiplicationBatchResultView({
 
   return (
     <div className="space-y-5">
-      <section className="rounded-xl border bg-muted/20 p-4 sm:p-5" aria-labelledby="batch-summary-title">
+      <section className="rounded-xl border bg-muted/20 p-4 sm:p-5" aria-labelledby={summaryId}>
         <div className="flex items-start gap-3">
           <span
             className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg ${
@@ -165,11 +184,11 @@ export function MultiplicationBatchResultView({
             <p className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
               Batch Report
             </p>
-            <h3 id="batch-summary-title" className="mt-1 text-base font-semibold text-balance">
+            <h3 id={summaryId} className="mt-1 text-base font-semibold text-balance">
               {running
-                ? `Running Multiplications (${numberFormatter.format(completedCount)} of ${numberFormatter.format(batch.totalFiles)})`
+                ? `${runningTitle} (${numberFormatter.format(completedCount)} of ${numberFormatter.format(batch.totalFiles)})`
                 : allSucceeded
-                  ? "All Multiplications Complete"
+                  ? successTitle
                   : "Batch Complete with Errors"}
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -202,18 +221,21 @@ export function MultiplicationBatchResultView({
         </dl>
       </section>
 
-      <section aria-labelledby="dataset-results-title">
+      <section aria-labelledby={resultsId}>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 id="dataset-results-title" className="text-sm font-medium">Dataset Results</h3>
-          <span className="text-xs text-muted-foreground">Open a completed file to inspect its product</span>
+          <h3 id={resultsId} className="text-sm font-medium">Dataset Results</h3>
+          <span className="text-xs text-muted-foreground">Open a completed file to inspect its result</span>
         </div>
         {batch.files.length > 0 ? (
           <div className="space-y-2.5">
             {batch.files.map((file) => (
-              <MultiplicationFileRecord
+              <AlgorithmFileRecord
                 key={file.fileName}
                 file={file}
                 defaultOpen={batch.totalFiles === 1}
+                getFileSubtitle={getFileSubtitle}
+                hasTrace={hasTrace}
+                renderResult={renderResult}
               />
             ))}
           </div>

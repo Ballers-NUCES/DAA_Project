@@ -2,25 +2,40 @@ import { Channel } from "@tauri-apps/api/core"
 import { open } from "@tauri-apps/plugin-dialog"
 import { commands } from "@/bindings"
 import type {
-  ClosestPairResult,
+  AlgorithmBatchSource,
+  ClosestPairBatchResult,
+  ClosestPairProgressEvent,
   GenerationResult,
   KaratsubaProgressEvent,
   MultiplicationBatchResult,
 } from "@/types/workflow"
 
+type CommandResult<T> = { status: "ok"; data: T } | { status: "error"; error: string }
+
+function unwrapCommand<T>(result: CommandResult<T>): T {
+  if (result.status === "error") throw new Error(result.error)
+  return result.data
+}
+
 /** Frontend boundary for the Tauri commands. */
-export async function runClosestPair(path: string): Promise<ClosestPairResult> {
-  throw new Error(
-    `The Rust command is not connected yet. “${fileNameFromPath(path)}” is ready and your selection has been preserved.`,
-  )
+export async function runClosestPair(
+  source: AlgorithmBatchSource,
+  onProgress?: (event: ClosestPairProgressEvent) => void,
+): Promise<ClosestPairBatchResult> {
+  const progressChannel = new Channel<ClosestPairProgressEvent>()
+  if (onProgress) {
+    progressChannel.onmessage = onProgress
+  }
+
+  const result =
+    source.mode === "folder"
+      ? await commands.runClosestPairFolder(source.directory, progressChannel)
+      : await commands.runClosestPairFiles(source.files, progressChannel)
+  return unwrapCommand(result)
 }
 
 export async function runKaratsuba(
-  source: {
-    mode: "folder" | "files"
-    directory: string
-    files: string[]
-  },
+  source: AlgorithmBatchSource,
   onProgress?: (event: KaratsubaProgressEvent) => void,
 ): Promise<MultiplicationBatchResult> {
   const progressChannel = new Channel<KaratsubaProgressEvent>()
@@ -32,9 +47,7 @@ export async function runKaratsuba(
     source.mode === "folder"
       ? await commands.runKaratsubaFolder(source.directory, progressChannel)
       : await commands.runKaratsubaFiles(source.files, progressChannel)
-
-  if (result.status === "error") throw new Error(result.error)
-  return result.data
+  return unwrapCommand(result)
 }
 
 export async function generateDatasets(options: {
@@ -42,8 +55,7 @@ export async function generateDatasets(options: {
   seed: string
 }): Promise<GenerationResult> {
   const result = await commands.generateDatasets(options.outputDirectory, options.seed)
-  if (result.status === "error") throw new Error(result.error)
-  return result.data
+  return unwrapCommand(result)
 }
 
 export async function pickFolder(defaultPath?: string): Promise<string | null> {

@@ -1,19 +1,16 @@
 import { CalculatorIcon, CrosshairIcon, DatabaseIcon } from "lucide-react"
-import { AlgorithmPanel } from "@/components/algorithm-panel"
-import { ClosestPairResultView } from "@/components/algorithm-results"
 import { AppHeader } from "@/components/app-header"
+import { ClosestPairPanel } from "@/components/closest-pair-panel"
 import { GeneratorPanel } from "@/components/generator-panel"
 import { MultiplicationPanel } from "@/components/multiplication-panel"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { closestPairDatasets } from "@/data/datasets"
-import { useAlgorithmWorkflow } from "@/hooks/use-algorithm-workflow"
+import { useClosestPairWorkflow } from "@/hooks/use-closest-pair-workflow"
 import { useGeneratorWorkflow } from "@/hooks/use-generator-workflow"
 import { useMultiplicationWorkflow } from "@/hooks/use-multiplication-workflow"
-import { runClosestPair } from "@/lib/backend"
 
 function App() {
-  const closestPair = useAlgorithmWorkflow(runClosestPair)
   const generator = useGeneratorWorkflow()
+  const closestPair = useClosestPairWorkflow(generator.result?.closestPairDirectory)
   const karatsuba = useMultiplicationWorkflow(generator.result?.karatsubaDirectory)
 
   return (
@@ -69,27 +66,7 @@ function App() {
             </TabsList>
 
             <TabsContent value="closest-pair" className="mt-4">
-              <AlgorithmPanel
-                id="closest-pair"
-                badge="Divide & Conquer"
-                subtitle="2-D Euclidean Plane"
-                title="Closest Pair of Points"
-                description="Find the two nearest points in a two-dimensional plane using recursive spatial partitioning."
-                complexity="O(n log n)"
-                actionLabel="Run Closest Pair"
-                idleDescription="Select a dataset and run the algorithm to see the closest points, Euclidean distance, running time, and step-by-step trace."
-                datasets={closestPairDatasets}
-                datasetTitle="Closest-Pair Datasets"
-                datasetDescription="Input sizes and geometric edge cases for cp01–cp10."
-                fileHint="Choose cp01–cp10. Files are assumed valid."
-                file={closestPair.file}
-                status={closestPair.status}
-                error={closestPair.error}
-                onFileChange={closestPair.selectFile}
-                onRun={() => void closestPair.run()}
-              >
-                {closestPair.result && <ClosestPairResultView result={closestPair.result} />}
-              </AlgorithmPanel>
+              <ClosestPairPanel workflow={closestPair} />
             </TabsContent>
 
             <TabsContent value="karatsuba" className="mt-4">

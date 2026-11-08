@@ -1,3 +1,4 @@
+use crate::model::{AlgorithmStep, TraceRecorder};
 use rayon::join;
 use serde::Serialize;
 use specta::Type;
@@ -14,20 +15,10 @@ const PARALLEL_THRESHOLD: usize = 4_096; // limbs
 const ROWS_PER_PASS: usize = 16;
 const TRACE_CUTOFF: usize = 1;
 const MAX_TRACE_DIGITS: usize = 101;
-const MAX_TRACE_STEPS: usize = 2_000;
 const MULTIPLICATION_FILES: [&str; 10] = [
     "im01.txt", "im02.txt", "im03.txt", "im04.txt", "im05.txt", "im06.txt", "im07.txt", "im08.txt",
     "im09.txt", "im10.txt",
 ];
-
-#[derive(Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AlgorithmStep {
-    pub title: String,
-    pub description: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub depth: Option<usize>,
-}
 
 #[derive(Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -73,42 +64,6 @@ pub struct MultiplicationBatchResult {
     pub total_elapsed_micros: u64,
 }
 
-struct TraceRecorder {
-    enabled: bool,
-    steps: Vec<AlgorithmStep>,
-}
-
-impl TraceRecorder {
-    #[cfg(test)]
-    fn disabled() -> Self {
-        Self {
-            enabled: false,
-            steps: Vec::new(),
-        }
-    }
-
-    fn enabled() -> Self {
-        Self {
-            enabled: true,
-            steps: Vec::new(),
-        }
-    }
-
-    fn is_active(&self) -> bool {
-        self.enabled && self.steps.len() < MAX_TRACE_STEPS
-    }
-
-    fn push(&mut self, depth: usize, title: &str, description: String) {
-        if self.is_active() {
-            self.steps.push(AlgorithmStep {
-                title: title.to_owned(),
-                description,
-                depth: Some(depth),
-            });
-        }
-    }
-}
-
 pub fn multiply_input(input: &str) -> Result<MultiplicationResult, String> {
     let (left, right) = parse_operands(input)?;
     let left_limbs = limbs_from_decimal(&left);
@@ -123,7 +78,7 @@ pub fn multiply_input(input: &str) -> Result<MultiplicationResult, String> {
     let trace = if left.len().max(right.len()) <= MAX_TRACE_DIGITS {
         let mut recorder = TraceRecorder::enabled();
         let _ = karatsuba(&left_limbs, &right_limbs, TRACE_CUTOFF, 0, &mut recorder);
-        Some(recorder.steps)
+        Some(recorder.into_steps())
     } else {
         None
     };

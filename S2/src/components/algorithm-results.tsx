@@ -21,14 +21,26 @@ function PointCard({ label, point }: { label: string; point: Point }) {
   )
 }
 
-export function ClosestPairResultView({ result }: { result: ClosestPairResult }) {
+export function ClosestPairResultView({
+  result,
+  showMetrics = true,
+}: {
+  result: ClosestPairResult
+  showMetrics?: boolean
+}) {
   return (
     <div className="space-y-5">
-      <dl className="grid gap-3 sm:grid-cols-3">
-        <ResultMetric label="Input Size" value={`${numberFormatter.format(result.inputSize)}\u00a0points`} />
-        <ResultMetric label="Closest Distance" value={String(result.distance)} />
-        <ResultMetric label="Running Time" value={formatDuration(result.elapsedMicros)} />
-      </dl>
+      {showMetrics ? (
+        <dl className="grid gap-3 sm:grid-cols-3">
+          <ResultMetric label="Input Size" value={`${numberFormatter.format(result.inputSize)}\u00a0points`} />
+          <ResultMetric label="Closest Distance" value={String(result.distance)} />
+          <ResultMetric label="Running Time" value={formatDuration(result.elapsedMicros)} />
+        </dl>
+      ) : (
+        <dl>
+          <ResultMetric label="Closest Distance" value={String(result.distance)} />
+        </dl>
+      )}
       <div>
         <h3 className="mb-3 text-sm font-medium">Closest Pair</h3>
         <div className="grid gap-3 sm:grid-cols-2">

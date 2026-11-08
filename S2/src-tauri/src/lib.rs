@@ -1,11 +1,44 @@
+mod closest_pair;
 mod generator;
 mod karatsuba;
+mod model;
 
+use closest_pair::{ClosestPairBatchResult, ClosestPairProgressEvent};
 use generator::GenerationResult;
 use karatsuba::{KaratsubaProgressEvent, MultiplicationBatchResult};
 use specta_typescript::Typescript;
 use tauri::ipc::Channel;
 use tauri_specta::{Builder, collect_commands};
+
+#[tauri::command]
+#[specta::specta]
+async fn run_closest_pair_folder(
+    directory: String,
+    on_progress: Channel<ClosestPairProgressEvent>,
+) -> Result<ClosestPairBatchResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        closest_pair::run_folder_with_progress(&directory, |event| {
+            let _ = on_progress.send(event);
+        })
+    })
+    .await
+    .map_err(|error| format!("The closest-pair batch could not complete: {error}"))?
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn run_closest_pair_files(
+    paths: Vec<String>,
+    on_progress: Channel<ClosestPairProgressEvent>,
+) -> Result<ClosestPairBatchResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        closest_pair::run_files_with_progress(paths, |event| {
+            let _ = on_progress.send(event);
+        })
+    })
+    .await
+    .map_err(|error| format!("The closest-pair batch could not complete: {error}"))?
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -53,6 +86,8 @@ async fn generate_datasets(
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
+            run_closest_pair_folder,
+            run_closest_pair_files,
             run_karatsuba_folder,
             run_karatsuba_files,
             generate_datasets,

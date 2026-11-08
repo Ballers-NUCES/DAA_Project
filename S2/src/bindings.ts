@@ -4,6 +4,8 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	runClosestPairFolder: (directory: string, onProgress: Channel<ClosestPairProgressEvent_Deserialize>) => typedError<ClosestPairBatchResult_Serialize, string>(__TAURI_INVOKE("run_closest_pair_folder", { directory, onProgress })),
+	runClosestPairFiles: (paths: string[], onProgress: Channel<ClosestPairProgressEvent_Deserialize>) => typedError<ClosestPairBatchResult_Serialize, string>(__TAURI_INVOKE("run_closest_pair_files", { paths, onProgress })),
 	runKaratsubaFolder: (directory: string, onProgress: Channel<KaratsubaProgressEvent_Deserialize>) => typedError<MultiplicationBatchResult_Serialize, string>(__TAURI_INVOKE("run_karatsuba_folder", { directory, onProgress })),
 	runKaratsubaFiles: (paths: string[], onProgress: Channel<KaratsubaProgressEvent_Deserialize>) => typedError<MultiplicationBatchResult_Serialize, string>(__TAURI_INVOKE("run_karatsuba_files", { paths, onProgress })),
 	generateDatasets: (outputDirectory: string, seed: string) => typedError<GenerationResult, string>(__TAURI_INVOKE("generate_datasets", { outputDirectory, seed })),
@@ -22,6 +24,66 @@ export type AlgorithmStep_Serialize = {
 	title: string,
 	description: string,
 	depth?: number,
+};
+
+export type ClosestPairBatchResult = ClosestPairBatchResult_Serialize | ClosestPairBatchResult_Deserialize;
+
+export type ClosestPairBatchResult_Deserialize = {
+	source: string,
+	files: ClosestPairFileResult_Deserialize[],
+	totalFiles: number,
+	succeeded: number,
+	failed: number,
+	totalElapsedMicros: number,
+};
+
+export type ClosestPairBatchResult_Serialize = {
+	source: string,
+	files: ClosestPairFileResult_Serialize[],
+	totalFiles: number,
+	succeeded: number,
+	failed: number,
+	totalElapsedMicros: number,
+};
+
+export type ClosestPairFileResult = ClosestPairFileResult_Serialize | ClosestPairFileResult_Deserialize;
+
+export type ClosestPairFileResult_Deserialize = {
+	fileName: string,
+	result?: ClosestPairResult_Deserialize | null,
+	error?: string | null,
+};
+
+export type ClosestPairFileResult_Serialize = {
+	fileName: string,
+	result?: ClosestPairResult_Serialize,
+	error?: string,
+};
+
+export type ClosestPairProgressEvent = ClosestPairProgressEvent_Serialize | ClosestPairProgressEvent_Deserialize;
+
+export type ClosestPairProgressEvent_Deserialize = { kind: "started"; index: number; fileName: string } | { kind: "finished"; index: number; file: ClosestPairFileResult_Deserialize };
+
+export type ClosestPairProgressEvent_Serialize = { kind: "started"; index: number; fileName: string } | { kind: "finished"; index: number; file: ClosestPairFileResult_Serialize };
+
+export type ClosestPairResult = ClosestPairResult_Serialize | ClosestPairResult_Deserialize;
+
+export type ClosestPairResult_Deserialize = {
+	first: Point,
+	second: Point,
+	distance: number | null,
+	inputSize: number,
+	elapsedMicros: number,
+	trace?: AlgorithmStep_Deserialize[] | null,
+};
+
+export type ClosestPairResult_Serialize = {
+	first: Point,
+	second: Point,
+	distance: number | null,
+	inputSize: number,
+	elapsedMicros: number,
+	trace?: AlgorithmStep_Serialize[],
 };
 
 export type GenerationResult = {
@@ -88,6 +150,11 @@ export type MultiplicationResult_Serialize = {
 	rightDigits: number,
 	elapsedMicros: number,
 	trace?: AlgorithmStep_Serialize[],
+};
+
+export type Point = {
+	x: number | null,
+	y: number | null,
 };
 
 /* Tauri Specta runtime */

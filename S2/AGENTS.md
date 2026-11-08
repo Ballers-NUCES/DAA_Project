@@ -28,17 +28,17 @@ Do not invent requirements. When in doubt, re-read `Project2026.pdf`; it is shor
 
 ## 2. State of the project (read this before planning work)
 
-The **frontend is complete**. **Karatsuba and dataset generation are connected end to end**; closest-pair remains a stub. `src/lib/backend.ts` is the single seam between UI and Rust.
+The **frontend and both algorithms are connected end to end**. Closest-pair and Karatsuba share the same generated-folder/selected-files batch workflow, progress UI, and trace viewer. `src/lib/backend.ts` is the single seam between UI and Rust.
 
-- `runKaratsuba` runs the generated `karatsuba` folder by default or sends selected absolute file paths as a batch. The async `run_karatsuba_folder` and `run_karatsuba_files` commands read files in Rust, return per-file results, and continue after individual failures.
+- `runClosestPair` and `runKaratsuba` run their generated folders by default or send selected absolute file paths as batches. Their async folder/files commands read files in Rust, stream per-file progress, and continue after individual failures.
+- `src-tauri/src/closest_pair.rs` implements custom merge sorting, ranked x/y partitioning, middle-strip scanning, bounded Rayon recursion, timing, traces, batch orchestration, and unit tests.
 - `src-tauri/src/karatsuba.rs` implements custom base-1e9 `Vec<u32>` arithmetic, validation, timing, traces, batch orchestration, and unit tests.
+- `src-tauri/src/model.rs` owns the shared `AlgorithmStep` and capped `TraceRecorder`.
 - `src-tauri/src/generator.rs` implements deterministic SplitMix64 generation for all 20 datasets, per-file seeds, a JSON manifest, and unit tests. Closest-pair files go in `cpp/`; multiplication files go in `karatsuba/`.
-- `generateDatasets` invokes the async `generate_datasets` Tauri command; `runClosestPair` still **throws** intentionally.
-- `src-tauri/src/lib.rs` registers the two Karatsuba batch commands and `generate_datasets`; the template `greet` command has been removed.
+- `generateDatasets` invokes the async `generate_datasets` Tauri command and links both output folders into their respective workflows.
+- `src-tauri/src/lib.rs` registers both folder/files command pairs and `generate_datasets`; the template `greet` command has been removed.
 
-The remaining backend work is closest-pair, its IPC contract, and replacing the remaining throw in `backend.ts`.
-
-The app builds and runs (`bun run build` passes, `cargo check` passes). Don't re-derive that.
+The app builds and runs (`bun run build` passes, `cargo test` passes). Don't re-derive that.
 
 ---
 
@@ -102,23 +102,26 @@ S2/
     lib/validation.ts        validateSeed (u64 bound, BigInt-checked)
     lib/utils.ts             re-exports cn from the "cn" package
     data/datasets.ts         cp01-cp10 / im01-im10 descriptors shown in the UI
-    hooks/use-algorithm-workflow.ts   closest-pair file + status + result + error machine
-    hooks/use-multiplication-workflow.ts   generated-folder/files source + batch run machine
+    hooks/use-algorithm-workflow.ts   shared folder/files batch state + progress machine
+    hooks/use-closest-pair-workflow.ts   closest-pair runner + dataset configuration
+    hooks/use-multiplication-workflow.ts   Karatsuba runner + dataset configuration
     hooks/use-generator-workflow.ts   seed + output dir + validation + run
     components/              feature components (kebab-case files)
     components/ui/           vendored shadcn/Base UI primitives
   src-tauri/
     src/lib.rs               async commands + invoke_handler — the only registration point
+    src/closest_pair.rs      custom merge sort, O(n log n) closest pair, traces, and batches
     src/karatsuba.rs         Vec<u32> Karatsuba, parser, traces, batches, and unit tests
     src/generator.rs         SplitMix64 datasets, seed manifest, and unit tests
+    src/model.rs             shared AlgorithmStep + TraceRecorder
     src/main.rs              calls dsa_project_lib::run()
     tauri.conf.json          window 1100x760, bun hooks, csp null
     capabilities/default.json  window "main": core:default, opener:default
 ```
 
-Frontend flow: closest-pair uses `useAlgorithmWorkflow` -> `AlgorithmPanel`; Karatsuba uses `useMultiplicationWorkflow` -> `MultiplicationPanel` -> `MultiplicationBatchResultView`; the generator has its own hook. Feature components are presentational and take props; all state lives in the three hooks.
+Frontend flow: `useClosestPairWorkflow` and `useMultiplicationWorkflow` configure the shared `useAlgorithmWorkflow` for their respective runners. `ClosestPairPanel` and `MultiplicationPanel` supply algorithm-specific copy and result rendering to the shared `AlgorithmPanel` and `AlgorithmBatchResultView`; the generator has its own hook. Feature components are presentational and take props; all state lives in the workflow hooks.
 
-`WorkflowStatus` is `"idle" | "running" | "success" | "error"`, and the whole UI branches on it. All three hooks guard against stale responses with a `requestId` ref — **keep that pattern**, because a 1M-element run can outlive the user's next file selection.
+`WorkflowStatus` is `"idle" | "running" | "success" | "error"`, and the whole UI branches on it. All workflow hooks guard against stale responses with a `requestId` ref — **keep that pattern**, because a 1M-element run can outlive the user's next file selection.
 
 ---
 
@@ -139,14 +142,14 @@ Shape requirements, taken from the TS types:
 - `ClosestPairResult`: `first`, `second` (`{x, y}` numbers), `distance: f64`, `inputSize: u64`, `elapsedMicros: u64`, `trace?: AlgorithmStep[]`.
 - `MultiplicationResult`: `product: String`, `leftDigits`, `rightDigits`, `elapsedMicros`, `trace?`.
 - `GenerationResult`: `filesGenerated`, `manifestPath`, `outputDirectory`, `karatsubaDirectory`, `closestPairDirectory`.
-- `MultiplicationBatchResult`: `source`, `files`, `totalFiles`, `succeeded`, `failed`, `totalElapsedMicros`. Each file entry has `fileName` plus optional `result` or `error`; total time sums algorithm-only timings.
+- `ClosestPairBatchResult` and `MultiplicationBatchResult`: `source`, `files`, `totalFiles`, `succeeded`, `failed`, `totalElapsedMicros`. Each file entry has `fileName` plus optional `result` or `error`; total time sums algorithm-only timings. Their progress events use `{kind: "started" | "finished"}` and stream over `Channel<T>`.
 - `AlgorithmStep`: `{ title: string, description: string, depth?: number }`. `description` is rendered in a `<p>` with `whitespace-pre-wrap`, so newlines are fine, markdown is not.
 
-Errors: return `Result<T, String>` and make the string **user-facing English prose** — it is shown verbatim inside an `Alert`. Match the tone of the existing stub messages ("…is ready and your selection has been preserved.").
+Errors: return `Result<T, String>` and make the string **user-facing English prose** — it is shown verbatim inside an `Alert`. `backend.ts` unwraps Specta's `{status: "ok" | "error"}` command results and throws the error string so every workflow uses the same catch path.
 
 ### File paths and native dialogs
 
-Both file pickers use `@tauri-apps/plugin-dialog` through `pickFiles` in `src/lib/backend.ts`. The hooks store absolute path strings, and Rust reads selected files on a background thread. File contents never cross the JSON IPC boundary, so selecting multi-megabyte datasets does not block the UI on string conversion or serialization. Closest-pair should use the same `path: String` command argument when its backend is implemented.
+Both file pickers use `@tauri-apps/plugin-dialog` through `pickFiles` in `src/lib/backend.ts`. The hooks store absolute path strings, and Rust reads selected files on a background thread. File contents never cross the JSON IPC boundary, so selecting multi-megabyte datasets does not block the UI on string conversion or serialization. Both algorithms expose matching `run_*_folder(directory, on_progress)` and `run_*_files(paths, on_progress)` command pairs.
 
 Dialog cancellation preserves the current selection. The `dialog:default` permission is already granted in `capabilities/default.json`; keep it when editing capabilities.
 
@@ -157,7 +160,10 @@ A plain `#[tauri::command]` runs on the main thread and freezes the window for t
 ```rust
 #[tauri::command]
 #[specta::specta]
-async fn run_closest_pair(path: String) -> Result<ClosestPairResult, String> {
+async fn run_closest_pair_files(
+    paths: Vec<String>,
+    on_progress: Channel<ClosestPairProgressEvent>,
+) -> Result<ClosestPairBatchResult, String> {
     tauri::async_runtime::spawn_blocking(move || { /* ... */ })
         .await.map_err(|e| e.to_string())?
 }
@@ -195,7 +201,7 @@ Dataset spec (mirrors `src/data/datasets.ts` — if you change one, change both)
 | im09 | 1 / 1,000,000 | one operand is 0 |
 | im10 | 101 | small, for the step-by-step view |
 
-The generator writes `cpp/cp01.txt`–`cpp/cp10.txt` and `karatsuba/im01.txt`–`karatsuba/im10.txt`, with relative paths and per-file seeds in `manifest.json`. Karatsuba defaults to the generated `karatsuba` folder and runs `im01.txt` through `im10.txt` in order; user-selected files use the same batch result UI.
+The generator writes `cpp/cp01.txt`–`cpp/cp10.txt` and `karatsuba/im01.txt`–`karatsuba/im10.txt`, with relative paths and per-file seeds in `manifest.json`. Both algorithms default to their generated folders (`cpp` and `karatsuba`) and run all 10 files in assignment order; user-selected files use the same batch result UI.
 
 **Traces only for cp10 and im10** (101 elements). The UI says so itself ("Small inputs include a trace"), and `TraceViewer` paginates 50 steps per page. Emitting a trace for a million-element run will stall the bridge for no marks. Keep traces a few thousand steps at most.
 
@@ -248,7 +254,7 @@ The generator writes `cpp/cp01.txt`–`cpp/cp10.txt` and `karatsuba/im01.txt`–
 ## 10. Rust conventions
 
 - `src-tauri/src/lib.rs` holds `run()` and the `invoke_handler` — the **only** registration point. `main.rs` stays a two-liner.
-- Karatsuba lives in `src/karatsuba.rs`. As the command set grows, add focused modules (`closest_pair.rs`, `generator.rs`, `model.rs`, or `commands/`) and keep `lib.rs` thin. Don't leave everything in `lib.rs`.
+- Focused modules (`closest_pair.rs`, `karatsuba.rs`, `generator.rs`, `model.rs`) own the algorithms and shared types so `lib.rs` stays thin.
 - The template `greet` command has been removed; do not reintroduce it.
 - Add a plugin to *both* `Cargo.toml` and `.plugin(…)`, **and** grant its permission in `capabilities/default.json`. Tauri v2 fails at runtime, silently from the build's point of view.
 - Edition 2024. `serde`/`serde_json` are already dependencies.
@@ -267,7 +273,7 @@ The generator writes `cpp/cp01.txt`–`cpp/cp10.txt` and `karatsuba/im01.txt`–
 ## 12. Definition of done for a change
 
 1. `bun run build` passes (this is the `tsc` gate).
-2. `bun run tauri dev` — click through all three tabs. Idle -> running -> success/error must all render, including the error path with the backend stubbed or failing.
+2. `bun run tauri dev` — click through all three tabs. Idle -> running -> success/error must all render, including per-file and command-level error paths.
 3. For Rust: `cargo check` at minimum; if you touched an algorithm, verify against a naive implementation on small inputs (the spec explicitly allows library routines for this).
 4. No unused imports, no `any` smuggled in to silence a type error, no new dependency without a reason that would survive review.
 5. User-facing strings read like the ones already there.

@@ -1,33 +1,39 @@
 import type {
   AlgorithmStep,
+  ClosestPairFileResult,
+  ClosestPairProgressEvent,
+  ClosestPairResult,
   GenerationResult,
   KaratsubaProgressEvent,
   MultiplicationFileResult,
   MultiplicationResult,
+  Point,
 } from "@/bindings"
 
 export type {
   AlgorithmStep,
+  ClosestPairFileResult,
+  ClosestPairProgressEvent,
+  ClosestPairResult,
   GenerationResult,
   KaratsubaProgressEvent,
   MultiplicationFileResult,
   MultiplicationResult,
+  Point,
 }
 
 export type WorkflowStatus = "idle" | "running" | "success" | "error"
+export type AlgorithmSourceMode = "folder" | "files"
 
-export interface Point {
-  x: number
-  y: number
-}
-
-export interface ClosestPairResult {
-  first: Point
-  second: Point
-  distance: number
-  inputSize: number
+export interface AlgorithmResult {
   elapsedMicros: number
   trace?: AlgorithmStep[] | null
+}
+
+export interface AlgorithmBatchSource {
+  mode: AlgorithmSourceMode
+  directory: string
+  files: string[]
 }
 
 export interface AlgorithmFileResult<T> {
@@ -46,4 +52,17 @@ export interface AlgorithmBatchResult<T> {
   totalElapsedMicros: number
 }
 
+export type AlgorithmProgressEvent<T> =
+  | {
+      kind: "started"
+      index: number
+      fileName: string
+    }
+  | {
+      kind: "finished"
+      index: number
+      file: AlgorithmFileResult<T>
+    }
+
+export type ClosestPairBatchResult = AlgorithmBatchResult<ClosestPairResult>
 export type MultiplicationBatchResult = AlgorithmBatchResult<MultiplicationResult>
