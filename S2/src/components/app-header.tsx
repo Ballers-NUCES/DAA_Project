@@ -1,6 +1,7 @@
 import { LayersIcon } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { ModeToggle } from "@/components/mode-toggle"
+import { MuteToggle } from "@/components/mute-toggle"
+import { Badge } from "@/components/ui/badge"
 
 export function AppHeader() {
   return (
@@ -18,7 +19,10 @@ export function AppHeader() {
             Submission 02
           </Badge>
         </div>
-        <ModeToggle />
+        <div className="flex shrink-0 items-center gap-2">
+          <MuteToggle />
+          <ModeToggle />
+        </div>
       </div>
     </header>
   )

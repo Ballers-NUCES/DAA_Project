@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { fileNameFromPath } from "@/lib/backend"
+import { playCelebrationSound } from "@/lib/celebration-sound"
 import type {
   AlgorithmBatchResult,
   AlgorithmBatchSource,
@@ -187,6 +188,9 @@ export function useAlgorithmWorkflow<T extends AlgorithmResult>({
         })),
       })
       setStatus("success")
+      if (nextResult.totalFiles > 0 && nextResult.failed === 0) {
+        playCelebrationSound()
+      }
     } catch (reason) {
       if (currentRequest !== requestId.current) return null
       setResult(null)
