@@ -1,4 +1,4 @@
-import yippeeSound from "@/assets/yippee.mp3"
+import yippeeSound from "@/assets/yippee.mp3?inline"
 
 const MUTE_STORAGE_KEY = "daa-workspace-muted"
 let muted = readMutedPreference()
@@ -33,10 +33,10 @@ export function playCelebrationSound() {
   try {
     audio ??= new Audio(yippeeSound)
     audio.currentTime = 0
-    void audio.play().catch(() => {
-      // Ignore environments without audio output or autoplay permission.
+    void audio.play().catch((err) => {
+      console.error(err)
     })
-  } catch {
-    // Audio is decorative and should never interrupt an algorithm workflow.
+  } catch (err) {
+    console.error(err)
   }
 }
