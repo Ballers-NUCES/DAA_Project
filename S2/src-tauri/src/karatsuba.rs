@@ -66,8 +66,8 @@ pub struct MultiplicationBatchResult {
 
 pub fn multiply_input(input: &str) -> Result<MultiplicationResult, String> {
     let (left, right) = parse_operands(input)?;
-    let left_limbs = limbs_from_decimal(&left);
-    let right_limbs = limbs_from_decimal(&right);
+    let left_limbs = limbs_from_decimal(left);
+    let right_limbs = limbs_from_decimal(right);
 
     // Only the multiplication is timed; parsing, formatting, and tracing stay outside.
     let started = Instant::now();
@@ -222,7 +222,7 @@ where
     }
 }
 
-fn parse_operands(input: &str) -> Result<(String, String), String> {
+fn parse_operands(input: &str) -> Result<(&str, &str), String> {
     let shape_error = || {
         "The input must contain exactly two non-empty decimal integers, one per line.".to_owned()
     };
@@ -236,7 +236,7 @@ fn parse_operands(input: &str) -> Result<(String, String), String> {
     Ok((parse_operand(left_line)?, parse_operand(right_line)?))
 }
 
-fn parse_operand(line: &str) -> Result<String, String> {
+fn parse_operand(line: &str) -> Result<&str, String> {
     let line = line.trim();
     if line.is_empty() {
         return Err("Each input line must contain a non-empty decimal integer.".to_owned());
@@ -252,9 +252,9 @@ fn parse_operand(line: &str) -> Result<String, String> {
 
     let normalized = line.trim_start_matches('0');
     Ok(if normalized.is_empty() {
-        "0".to_owned()
+        "0"
     } else {
-        normalized.to_owned()
+        normalized
     })
 }
 

@@ -109,11 +109,17 @@ pub fn run_input_with_sort(
     sort_strategy: XSortStrategy,
 ) -> Result<ClosestPairResult, String> {
     let points = parse_points(input)?;
+    let input_size = points.len();
+    let trace_points = if input_size <= MAX_TRACE_POINTS {
+        Some(points.clone())
+    } else {
+        None
+    };
 
     // Parsing and trace construction stay outside the algorithm timer.
     let started = Instant::now();
-    let candidate = find_closest_with_options(
-        &points,
+    let candidate = find_closest_owned_with_options(
+        points,
         &mut TraceRecorder::disabled(),
         PARALLEL_THRESHOLD,
         sort_strategy,
@@ -121,19 +127,22 @@ pub fn run_input_with_sort(
     let distance = candidate.distance_squared.sqrt();
     let elapsed_micros = started.elapsed().as_micros().min(u64::MAX as u128) as u64;
 
-    let trace = if points.len() <= MAX_TRACE_POINTS {
+    let trace = trace_points.map(|points| {
         let mut recorder = TraceRecorder::enabled();
-        let _ = find_closest_with_options(&points, &mut recorder, PARALLEL_THRESHOLD, sort_strategy);
-        Some(recorder.into_steps())
-    } else {
-        None
-    };
+        let _ = find_closest_owned_with_options(
+            points,
+            &mut recorder,
+            PARALLEL_THRESHOLD,
+            sort_strategy,
+        );
+        recorder.into_steps()
+    });
 
     Ok(ClosestPairResult {
         first: candidate.first,
         second: candidate.second,
         distance,
-        input_size: points.len(),
+        input_size,
         elapsed_micros,
         trace,
     })
@@ -231,8 +240,7 @@ where
             file_name: file_name.clone(),
         });
 
-        let outcome =
-            load_input().and_then(|content| run_input_with_sort(&content, sort_strategy));
+        let outcome = load_input().and_then(|content| run_input_with_sort(&content, sort_strategy));
         let file_result = match outcome {
             Ok(result) => {
                 total_elapsed_micros += u128::from(result.elapsed_micros);
@@ -632,8 +640,18 @@ fn check_strip(strip: &[Point], mut best: Candidate) -> Candidate {
     best
 }
 
+#[cfg(test)]
 fn find_closest_with_options(
     points: &[Point],
+    trace: &mut TraceRecorder,
+    parallel_threshold: usize,
+    sort_strategy: XSortStrategy,
+) -> Candidate {
+    find_closest_owned_with_options(points.to_vec(), trace, parallel_threshold, sort_strategy)
+}
+
+fn find_closest_owned_with_options(
+    mut sorted_points: Vec<Point>,
     trace: &mut TraceRecorder,
     parallel_threshold: usize,
     sort_strategy: XSortStrategy,
@@ -643,8 +661,7 @@ fn find_closest_with_options(
     } else {
         parallel_threshold
     };
-    let mut sorted_points = points.to_vec();
-    let mut scratch = vec![Point { x: 0.0, y: 0.0 }; points.len()];
+    let mut scratch = vec![Point { x: 0.0, y: 0.0 }; sorted_points.len()];
 
     match sort_strategy {
         XSortStrategy::Merge => {
