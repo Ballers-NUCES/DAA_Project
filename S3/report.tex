@@ -1,0 +1,140 @@
+\documentclass[10pt,a4paper,twocolumn]{article}
+\usepackage[margin=16mm,columnsep=6mm,footskip=7mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,array,tabularx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage{caption,titlesec,url}
+\usepackage[hidelinks]{hyperref}
+\hypersetup{pdftitle={Divide-and-Conquer at Million-Scale: Closest-Pair Search and Integer Multiplication},pdfauthor={Fadil Faisal, M.Arham Usman, Khizer Sheikh},pdfsubject={CS2009 Design and Analysis of Algorithms, Submission 3}}
+\captionsetup{font=small,labelfont=bf,skip=4pt}
+\titleformat{\section}{\large\bfseries}{\thesection}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{9pt}{4pt}
+\titlespacing*{\subsection}{0pt}{6pt}{3pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlength{\textfloatsep}{8pt}
+\setlength{\intextsep}{7pt}
+\setlength{\tabcolsep}{3pt}
+\hyphenation{Karatsuba Tauri}
+\raggedbottom
+\renewcommand{\arraystretch}{1.13}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\file}[1]{\texttt{#1}}
+\input{metrics.tex}
+\begin{document}
+\twocolumn[{
+\centering
+{\LARGE\bfseries Divide-and-Conquer at Million-Scale\par}
+\vspace{3pt}
+{\large Closest-Pair Search and Integer Multiplication\par}
+\vspace{7pt}
+{Fadil Faisal (24K-0635) \quad M.Arham Usman (24K-1016)\par}
+{Khizer Sheikh (24K-0520)\par}
+\vspace{3pt}
+{\small CS2009 -- Design and Analysis of Algorithms \;|\; BCS-5F\par}
+{\small Instructor: Anaum Hamid \;|\; Submission 3 \;|\; November 20, 2026\par}
+\vspace{10pt}
+}]
+
+\section*{Abstract}
+We developed a desktop system for two-dimensional closest-pair search and nonnegative integer multiplication, combining custom divide-and-conquer algorithms with reproducible inputs and an explanatory interface. The system processes ten geometric and ten arithmetic datasets, including one million points and one million digits per operand. A standalone release-mode runner reuses the application kernels to measure computation separately from file handling and visualization. All 20 datasets pass independent result checks. On the million-size uniform cases, median times are \CPMillionRadix\,ms for closest-pair search with radix preprocessing and \IMMillion\,ms for multiplication. The experiments also expose the different costs of duplicate points, unbalanced operands and zero multiplication.
+
+\section{Introduction}
+Large inputs make exhaustive comparison and elementary arithmetic costly. Closest-pair search by testing every pair needs quadratic work; balanced schoolbook multiplication also has a quadratic digit-operation count. Divide and conquer reduces these costs by reusing structure between subproblems. Our project brings both algorithms into one workflow: deterministic input generation, file selection, batch execution and inspectable results. The evaluation covers the prescribed 20 datasets, including degenerate geometry and arithmetic edge cases, rather than only uniform random inputs.
+
+\section{System Design}
+Figure~\ref{fig:system} summarizes the implemented application. The React interface invokes Rust through Tauri. File processing runs in background tasks; batches progress in file order and retain individual errors. Rayon parallelizes sufficiently large recursive subproblems. The interface shows closest-pair coordinates and distance, or a product preview with a full-product copy action. Inputs of at most 101 points or 101 digits per operand receive bounded, paginated explanations.
+
+\begin{figure}[ht]
+\centering
+\input{figures/system-diagram.tex}
+\caption{Application data flow. The standalone experiment runner calls copies of the same Rust kernels.}
+\label{fig:system}
+\end{figure}
+
+\textbf{Closest pair.} A custom radix or merge sort orders points by $x$. Recursion divides this order by position, solves both halves and merges them by $y$. A middle strip is scanned using squared-distance bounds; the geometric packing argument keeps the combine work linear~\cite{wayne2005}. With a 16-point leaf solved by a direct y-ordered scan,
+\[
+T(n)=2T(n/2)+O(n)=O(n\log n).
+\]
+The radix option uses up to six passes over transformed 64-bit floating-point keys, skipping constant-digit passes and already-sorted inputs. Its linear preprocessing does not change the full algorithm's asymptotic bound. Merge sorting and recursive search use parallel branches from 16,384 points.
+
+\textbf{Integer multiplication.} Decimal operands become little-endian base-$10^9$ limbs. Karatsuba replaces four half-size products with three~\cite{karatsuba1962}, giving
+\[
+T(m)=3T(m/2)+O(m)=O(m^{\log_2 3}),
+\]
+for balanced $m$-limb inputs. The implementation uses schoolbook multiplication when the shorter operand has at most 64 limbs, chunks strongly unbalanced operands, and parallelizes balanced recursion from 4,096 padded limbs. Zero returns immediately after conversion. Small-input explanations are separate teaching runs with lower cutoffs; they are not traces of the timed optimized execution.
+
+
+\section{Experimental Setup}
+\textbf{Environment and protocol.} Measurements use an AMD Ryzen 5 5600 (6 cores, 12 logical processors), approximately 16\,GiB RAM, Windows 11, Rust 1.99.1 and 12 Rayon workers. The standalone Rust runner contains locally copied generator and algorithm modules; interface-specific type metadata is removed, while the computational logic is retained. Release compilation uses optimization level 3, LTO and one codegen unit. Each configuration receives one warm-up and five measured runs; tables report their medians.
+
+Closest-pair timing includes working allocation, the selected $x$-sort, recursion and the final square root. Multiplication timing includes arithmetic and its working allocation, but excludes decimal-to-limb conversion and product formatting. Both exclude file reading, parsing, independent verification, interface work and the separate explanation run. These are kernel measurements, not user-visible end-to-end latency. The application reports whole microseconds; the standalone runner additionally retains the same durations in nanoseconds, although the underlying clock does not resolve individual nanoseconds.
+
+\textbf{Reproducible generation.} Each file uses \mbox{SplitMix64}~\cite{vigna2015} with its own state. With base seed $b=20261110$, \file{cp}$i$ uses $b+i-1$ and \file{im}$i$ uses $b+9+i$, for $i=1,\ldots,10$. Unsigned arithmetic wraps at 64 bits. Real draws use the upper 53 random bits divided by $2^{53}$; bounded integer draws use rejection sampling before reduction. Real coordinates are serialized to six decimal places. Grid and power-of-ten cases are deterministic, although their seeds are still recorded. All ten previously submitted small files match the regenerated copies byte for byte. Tables~\ref{tab:cpdata} and~\ref{tab:imdata} list each file's size, range and construction.
+
+\begin{table}[ht]
+\caption{Closest-pair inputs. $U$ denotes independent uniform draws; listed ranges describe generation, not observed extrema.}
+\label{tab:cpdata}
+\small
+\begin{tabularx}{\columnwidth}{@{}lrY@{}}
+\toprule
+File & Points & Construction / coordinate range\\
+\midrule
+cp01 & $10^3$ & $x,y\sim U[0,10^6)$\\
+cp02 & $10^4$ & Same uniform construction\\
+cp03 & $10^5$ & Same uniform construction\\
+cp04 & $10^6$ & Same uniform construction\\
+cp05 & $10^6$ & Ten centers uniform in $[0,10^6)^2$; choose one uniformly per point, add offsets $U[-1000,1000)$ per axis, clip to $[0,10^6]$\\
+cp06 & $10^6$ & Integer $x,y\in\{0,\ldots,255\}$; duplicates guaranteed\\
+cp07 & $10^5$ & $x=500000$; $y\sim U[0,10^6)$\\
+cp08 & $10^5$ & $250\times400$ grid; spacing 10; $x\in[0,2490]$, $y\in[0,3990]$\\
+cp09 & $10^6$ & $1000\times1000$ grid; spacing 1000; injected middle pair (below)\\
+cp10 & 101 & Uniform as cp01; explanation case\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For cp09, the background grid spans $[0,999000]^2$. Two points are replaced by $(499499.999500,500000)$ and $(499500.000500,500000)$, placing a distance-$0.001$ pair across the median division. Uniform coordinates may round to the endpoint $10^6$ when written to six decimals. Each closest-pair text file starts with its point count, followed by one coordinate pair per line.
+
+\begin{table}[ht]
+\caption{Multiplication inputs. $R_d$ is a random $d$-digit integer with no leading zero.}
+\label{tab:imdata}
+\small
+\begin{tabularx}{\columnwidth}{@{}lrrY@{}}
+\toprule
+File & Left digits & Right digits & Construction\\
+\midrule
+im01 & $10^3$ & $10^3$ & Two $R_{1000}$\\
+im02 & $10^4$ & $10^4$ & Two $R_{10000}$\\
+im03 & $10^5$ & $10^5$ & Two $R_{100000}$\\
+im04 & $10^6$ & $10^6$ & Two $R_{1000000}$\\
+im05 & $10^6$ & 10 & Left $R_{1000000}$; right $R_{10}$\\
+im06 & $10^5$ & $10^5$ & Left $10^{100000}-1$ (all nines); right $R_{100000}$\\
+im07 & 99,999 & 99,999 & Sparse: $77.5\%$ zero digits in both\\
+im08 & $10^6$ & $10^6$ & Both $10^{999999}$\\
+im09 & 1 & $10^6$ & Left operand $0$; right operand $R_{1000000}$\\
+im10 & 101 & 101 & Two $R_{101}$; explanation case\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For $R_d$, the leading digit is uniform on $1$--$9$ and each remaining digit is uniform on $0$--$9$, so $10^{d-1}\le R_d<10^d$. The two operands consume successive draws from the file's RNG. For im07, a nonleading digit is forced to zero with probability $3/4$; otherwise it is drawn uniformly from $0$--$9$. Its total zero probability is therefore $0.775$, with a nonzero leading digit. Multiplication files contain exactly two decimal lines.
+
+\textbf{Independent correctness checks.} A separate sweep-line implementation verifies closest-pair minima using integer microcoordinates and exact squared distances; brute force checks small synthetic cases. A reported pair must occur in the input and achieve the reference minimum, allowing floating-point rounding and alternative tied pairs. Python arbitrary-precision multiplication checks each complete product exactly. These verification-only library operations never participate in the measured algorithms. Construction-specific checks include cp06 distance 0, cp08 distance 10, cp09 distance $0.001$, im08 product $10^{1999998}$ and im09 product 0. Verification compared full coordinates and complete products before summarizing the results.
+
+
+\section{Results and Discussion}
+\input{results.tex}
+
+\section{Conclusion}
+The system completes the prescribed geometric and arithmetic workloads up to one million points and one million digits per operand, with independent checks of every dataset. The experiments connect divide-and-conquer complexity to implementation choices: preprocessing affects closest-pair time, while operand shape determines whether multiplication uses balanced Karatsuba, schoolbook arithmetic or the zero shortcut. Reproducible generation and independent checks support the reported results. The interface adds file selection, progress and small-input explanations without charging visualization work to the measured kernels.
+
+\begingroup
+\small
+\setlength{\parskip}{0pt}
+\bibliographystyle{unsrt}
+\bibliography{references}
+\endgroup
+\end{document}

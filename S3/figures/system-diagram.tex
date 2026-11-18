@@ -1,0 +1,32 @@
+% Editable vector figure; compiled directly by LaTeX/TikZ.
+\begin{tikzpicture}[
+  font=\footnotesize,
+  box/.style={draw=black!65, rounded corners=2pt, fill=black!4,
+    align=center, inner sep=4pt, text width=76mm, minimum height=9mm},
+  alg/.style={draw=black!65, rounded corners=2pt, fill=black!4,
+    align=center, inner sep=4pt, text width=32mm, minimum height=13mm},
+  flow/.style={-{Stealth[length=1.7mm,width=1.3mm]}, semithick, draw=black!70}
+]
+\node[box] (ui) {React/Tauri interface\\[1pt]
+  {\scriptsize Choose files or generate from a seed}};
+\node[box,below=5mm of ui] (gen) {SplitMix64 generator or selected text files\\[1pt]
+  {\scriptsize 20 datasets + per-file seed manifest}};
+\node[box,below=5mm of gen] (parse) {Rust background tasks\\[1pt]
+  {\scriptsize Read, validate and parse each input}};
+\node[alg,below=8.5mm of parse,xshift=-21mm] (cp) {\textbf{Closest pair}\\[2pt]
+  {\scriptsize divide and conquer}\\[1pt]{\scriptsize radix or merge $x$-sort}};
+\node[alg,below=8.5mm of parse,xshift=21mm] (im) {\textbf{Integer product}\\[2pt]
+  {\scriptsize Karatsuba recursion}\\[1pt]{\scriptsize schoolbook base case}};
+\node[box,below=31mm of parse] (out) {Per-file results, kernel time and progress\\[1pt]
+  {\scriptsize Small inputs: separate explanatory trace}};
+\coordinate (split) at ([yshift=-3.5mm]parse.south);
+\draw[flow] (ui.south) -- (gen.north);
+\draw[flow] (gen.south) -- (parse.north);
+\draw[flow] (parse.south) -- (split);
+\draw[flow] (split) -| (cp.north);
+\draw[flow] (split) -| (im.north);
+\coordinate (collect) at ([yshift=4.5mm]out.north);
+\draw[semithick,draw=black!70] (cp.south) -- (cp.south |- collect)
+  -- (im.south |- collect) -- (im.south);
+\draw[flow] (collect) -- (out.north);
+\end{tikzpicture}

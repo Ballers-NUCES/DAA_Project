@@ -1,0 +1,57 @@
+% Generated from retained raw measurements; do not edit by hand.
+All 20 input datasets passed independent verification, and all 27 copied Rust module tests passed. Both sorting configurations returned the same closest distances. Tables~\ref{tab:cpresults} and~\ref{tab:imresults} cover every prescribed file; verification used the returned coordinates and full decimal products.
+\begin{table}[ht]
+\caption{Closest-pair results: median kernel time in milliseconds (five runs). Distances are rounded for display.}
+\label{tab:cpresults}
+\small\centering
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+File & Merge (ms) & Radix (ms) & Distance\\
+\midrule
+cp01 & 0.1109 & 0.0702 & 315.635262\\
+cp02 & 1.8678 & 1.2577 & 93.0324356\\
+cp03 & 5.7468 & 5.0096 & 7.46221113\\
+cp04 & 56.6059 & 53.6375 & 1.18885955\\
+cp05 & 48.1578 & 44.7065 & 0.00373680775\\
+cp06 & 37.1170 & 31.3648 & 0\\
+cp07 & 5.5224 & 5.5892 & 0.000373999996\\
+cp08 & 3.0149 & 2.9098 & 10\\
+cp09 & 31.3902 & 35.3318 & 0.00100000005\\
+cp10 & 0.0050 & 0.0097 & 7135.47551\\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{table}[ht]
+\caption{Multiplication results: median kernel time and independently verified product length.}
+\label{tab:imresults}
+\small\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+File & Time (ms) & Product digits\\
+\midrule
+im01 & 0.0037 & 2,000\\
+im02 & 0.1573 & 20,000\\
+im03 & 1.2367 & 200,000\\
+im04 & 33.0359 & 2,000,000\\
+im05 & 0.4002 & 1,000,009\\
+im06 & 1.3598 & 200,000\\
+im07 & 1.2957 & 199,997\\
+im08 & 32.1531 & 1,999,999\\
+im09 & $\approx 0$ & 1\\
+im10 & 0.0002 & 202\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Example solutions.} cp04 returns $(984624.842563,\allowbreak 656374.534981)$ and $(984626.014180,\allowbreak 656374.736725)$. The full im10 product is shown below; line breaks separate consecutive digits:
+\begin{quote}\scriptsize\ttfamily\raggedright
+387289230164751802962022188871589393807826277241\\253168102200088490460117015739642406363146955021\\606529983911458448887140801670488726086089186701\\926934089760598603100748919454153734062149613836\\9629803660
+\end{quote}
+
+\textbf{Sorting and geometry.} Radix preprocessing has the lower median in 7 of ten cases. For cp04 it reduces median time by 5.2\% relative to merge preprocessing, but merge is faster on cp07, cp09 and cp10. Thus the observed advantage depends on input order, distribution and fixed costs. The clustered and duplicate cases are faster than the million-point uniform case in this run; finding a duplicate does not eliminate the remaining recursive merges.
+The construction checks agree with the outputs: cp06 returns zero, cp08 returns 10, and cp09 returns approximately 0.001. Its computed value, 0.0010000000475, reflects binary floating-point subtraction. The exact-coordinate reference confirms the intended pair. Tied grid or duplicate inputs need not produce a unique pair.
+
+\textbf{Operand shape and scaling.} From $10^5$ to $10^6$ random digits, multiplication time grows by $26.7\times$, versus about $10^{1.585}\approx38.5$ for a purely asymptotic sequential model. Parallel thresholds and fixed costs prevent interpreting this as a direct exponent estimate. im05 is much faster because its ten-digit operand occupies two limbs and selects the schoolbook path. im08 still performs balanced recursion despite its sparse operands; it is not handled by a dedicated power-of-ten shortcut.
+For im09 the five retained samples are 0, 0, 0, 100 and 100 ns. The median is below the observed timer resolution, not evidence of zero execution cost. Reading and converting its million-digit operand still takes work outside the kernel timer. im10 likewise uses a schoolbook leaf in the timed run, even though its separate explanation illustrates Karatsuba recursion.
+
+\textbf{Measurement limits.} cp04 radix samples span 51.82--54.28\,ms; im04 samples span 32.97--33.42\,ms. Runs use a shared desktop, fixed case order, and no CPU-affinity or power-plan control. Five repeats support descriptive comparisons, not statistical significance or hardware-independent speedups. We did not measure peak memory or interface latency. Exact product checks cover full outputs, whereas closest-pair arithmetic remains subject to floating-point rounding.

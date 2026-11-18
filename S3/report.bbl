@@ -1,0 +1,21 @@
+\begin{thebibliography}{1}
+
+\bibitem{wayne2005}
+Kevin Wayne.
+\newblock Chapter 5: Divide and conquer.
+\newblock Lecture slides accompanying J. Kleinberg and {\'E}. Tardos,
+  \emph{Algorithm Design}, Pearson Addison Wesley, 2005.
+\newblock Section 5.4: Closest Pair of Points.
+
+\bibitem{karatsuba1962}
+A.~Karatsuba and Yu. Ofman.
+\newblock Multiplication of many-digital numbers by automatic computers.
+\newblock {\em Doklady Akademii Nauk SSSR}, 145(2):293--294, 1962.
+
+\bibitem{vigna2015}
+Sebastiano Vigna.
+\newblock {SplitMix64}: Reference implementation.
+\newblock \url{https://prng.di.unimi.it/splitmix64.c}, 2015.
+\newblock Accessed November 19, 2026.
+
+\end{thebibliography}
